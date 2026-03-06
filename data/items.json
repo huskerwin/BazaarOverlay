@@ -20,6 +20,13 @@
       "template": "assets/templates/demo_scroll.pgm",
       "threshold": 0.83,
       "info": "Sample entry. Replace this template with a real game item icon."
+    },
+    {
+      "id": "start_button",
+      "name": "Start Button",
+      "template": "assets/templates/start_button.png",
+      "threshold": 0.82,
+      "info": "Start button UI element."
     }
   ]
 }
