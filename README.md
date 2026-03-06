@@ -7,7 +7,7 @@ While the hotkey is held, it captures a region around your cursor, compares that
 
 - Listens globally for `Shift + E` hold.
 - Captures a small region around the mouse cursor.
-- Runs OpenCV template matching against your item database.
+- Runs a hybrid OpenCV pipeline (template shortlist + ORB verification + short temporal smoothing).
 - Shows a transparent, always-on-top, click-through overlay.
 - Displays match confidence and falls back to `No confident match found.`
 
@@ -132,12 +132,14 @@ The tool saves `assets/templates/iron_sword.png` and prints a JSON snippet to pa
 - If misses occur due to scale differences, keep item icon size stable and add extra templates for that item.
 - ROI size (`--roi-radius`) is the biggest speed/accuracy tradeoff.
 - If templates are large (wide buttons/icons), keep captures tight, or expect higher CPU due to a larger effective ROI.
+- Default matching uses top `3` shortlist candidates and ORB re-ranking; tune `MatchConfig` in `overlay_app/config.py` for stricter or faster behavior.
+- Temporal smoothing defaults to `2` stable frames before a positive match; increase if labels flicker.
 
 ## Key files
 
 - `main.py` - app entry point
 - `overlay_app/controller.py` - hotkey to capture/match/render orchestration
-- `overlay_app/template_matcher.py` - template matching engine
+- `overlay_app/template_matcher.py` - hybrid matching engine (template shortlist + ORB re-ranking)
 - `overlay_app/overlay_window.py` - transparent overlay rendering
 - `overlay_app/item_repository.py` - JSON item database loader
 - `tools/capture_template.py` - template capture helper

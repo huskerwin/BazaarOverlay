@@ -14,10 +14,11 @@ This document describes how the Bazaar Overlay MVP is structured and how data mo
 1. User holds `Shift+E`.
 2. Global hotkey listener reports `active=True` to controller.
 3. Worker loop captures a cursor-centered ROI from desktop.
-4. Matcher compares ROI against preloaded template variants.
-5. Controller builds an overlay payload (matched item or fallback message).
-6. UI thread renders overlay near cursor.
-7. User releases `Shift+E` and overlay hides immediately.
+4. Matcher runs a hybrid pass: template shortlist, ORB re-ranking, and final confidence scoring.
+5. Controller applies short temporal smoothing/stability checks to reduce one-frame mislabels.
+6. Controller builds an overlay payload (matched item or fallback message).
+7. UI thread renders overlay near cursor.
+8. User releases `Shift+E` and overlay hides immediately.
 
 ## Module map
 
@@ -44,11 +45,13 @@ This document describes how the Bazaar Overlay MVP is structured and how data mo
 
 - `overlay_app/template_matcher.py`
   - Preloads templates into multi-scale variants.
-  - Computes grayscale and edge-based template scores.
-  - Produces a confidence score and thresholded match decision.
+  - Computes grayscale/edge template scores, builds a top-N shortlist, and re-ranks with ORB feature matching.
+  - Applies a center-bias term so matches near cursor/ROI center are favored over corner matches.
+  - Produces a thresholded match decision with blended confidence.
 
 - `overlay_app/controller.py`
   - Orchestrates hotkey, capture, match, and overlay updates.
+  - Applies temporal smoothing and a minimum stable-frame requirement before showing a positive match.
   - Runs detection in a worker thread while hotkey is active.
   - Emits Qt signals so rendering stays on the UI thread.
 
@@ -82,11 +85,13 @@ Each iteration does:
 
 1. Capture ROI around cursor (`roi_radius` from config).
 2. Convert ROI to normalized grayscale and edges.
-3. Score every template variant with `cv2.matchTemplate`.
-4. Select the highest combined score.
-5. Compare score against per-item threshold or global fallback.
-6. Emit overlay payload with text and confidence.
-7. Sleep to maintain configured polling interval.
+3. Score every template variant with `cv2.matchTemplate` and keep best score per item.
+4. Shortlist the top candidate items by template score.
+5. Re-rank shortlist with ORB descriptor matching and blend scores.
+6. Apply temporal smoothing and stability gating in controller.
+7. Compare smoothed score against per-item threshold or global fallback.
+8. Emit overlay payload with text and confidence.
+9. Sleep to maintain configured polling interval.
 
 ## Data model
 

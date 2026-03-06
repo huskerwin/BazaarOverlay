@@ -24,6 +24,12 @@ class AppController(QObject):
         super().__init__()
         self._config = config
 
+        self._stable_frames_required = max(1, int(config.matching.stable_frames_required))
+        self._temporal_alpha = float(max(0.05, min(0.95, config.matching.temporal_smoothing_alpha)))
+        self._last_candidate_id: str | None = None
+        self._candidate_streak = 0
+        self._smoothed_confidence = 0.0
+
         self._overlay = overlay
         self._matcher = TemplateMatcher(items=items, config=config.matching)
 
@@ -61,6 +67,7 @@ class AppController(QObject):
     def shutdown(self) -> None:
         self._hotkey.stop()
         self._active_event.clear()
+        self._reset_temporal_state()
         self._shutdown_event.set()
         self.overlay_hide.emit()
 
@@ -77,6 +84,7 @@ class AppController(QObject):
             self._active_event.set()
         else:
             self._active_event.clear()
+            self._reset_temporal_state()
             self.overlay_hide.emit()
 
     def _worker_loop(self) -> None:
@@ -90,6 +98,7 @@ class AppController(QObject):
             try:
                 roi_bgr, cursor_pos, _region = self._capture.capture_around_cursor()
                 result = self._matcher.match(roi_bgr)
+                result = self._stabilize_result(result)
                 elapsed_ms = (time.perf_counter() - started) * 1000.0
                 payload = self._build_overlay_payload(cursor_pos, result, elapsed_ms)
                 self.overlay_show.emit(payload)
@@ -112,6 +121,57 @@ class AppController(QObject):
             if sleep_for > 0:
                 time.sleep(sleep_for)
 
+    def _reset_temporal_state(self) -> None:
+        self._last_candidate_id = None
+        self._candidate_streak = 0
+        self._smoothed_confidence = 0.0
+
+    def _stabilize_result(self, result: MatchResult) -> MatchResult:
+        if result.best_item is None:
+            self._reset_temporal_state()
+            return result
+
+        candidate_id = result.best_item.item_id
+        if candidate_id == self._last_candidate_id:
+            self._candidate_streak += 1
+            self._smoothed_confidence = (
+                (self._temporal_alpha * result.confidence)
+                + ((1.0 - self._temporal_alpha) * self._smoothed_confidence)
+            )
+        else:
+            self._last_candidate_id = candidate_id
+            self._candidate_streak = 1
+            self._smoothed_confidence = result.confidence
+
+        stable = self._candidate_streak >= self._stable_frames_required
+        smoothed_confidence = self._smoothed_confidence
+        matched = stable and (smoothed_confidence >= result.threshold)
+
+        if matched:
+            item = result.best_item
+            message = item.info or f"Matched '{item.name}'."
+            return MatchResult(
+                matched=True,
+                confidence=smoothed_confidence,
+                threshold=result.threshold,
+                item=item,
+                best_item=item,
+                message=message,
+            )
+
+        message = result.message
+        if not stable:
+            message = "Stabilizing match..."
+
+        return MatchResult(
+            matched=False,
+            confidence=smoothed_confidence,
+            threshold=result.threshold,
+            item=None,
+            best_item=result.best_item,
+            message=message,
+        )
+
     def _build_overlay_payload(
         self,
         cursor_pos: tuple[int, int],
@@ -123,7 +183,10 @@ class AppController(QObject):
             body = result.message
             matched = True
         else:
-            title = "No confident match found."
+            if result.message == "Stabilizing match...":
+                title = "Stabilizing match..."
+            else:
+                title = "No confident match found."
             if result.best_item is None:
                 body = "Move the cursor directly over an item icon and hold Shift+E."
             else:

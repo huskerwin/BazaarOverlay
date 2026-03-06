@@ -16,6 +16,13 @@ class MatchConfig:
     scales: tuple[float, ...] = (0.90, 1.00, 1.10)
     gray_weight: float = 0.75
     edge_weight: float = 0.25
+    center_bias_weight: float = 0.25
+    shortlist_size: int = 3
+    orb_weight: float = 0.15
+    orb_ratio_test: float = 0.75
+    orb_min_good_matches: int = 8
+    temporal_smoothing_alpha: float = 0.60
+    stable_frames_required: int = 2
 
 
 @dataclass(frozen=True)

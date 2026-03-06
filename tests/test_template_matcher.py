@@ -137,3 +137,36 @@ def test_matcher_exposes_minimum_roi_radius_from_template_size(tmp_path: Path) -
     )
 
     assert matcher.minimum_roi_radius == 26
+
+
+def test_matcher_orb_stage_can_promote_shortlisted_candidate(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    coin_path = tmp_path / "coin.png"
+    gem_path = tmp_path / "gem.png"
+    _write_template(coin_path, "circle")
+    _write_template(gem_path, "diamond")
+
+    matcher = TemplateMatcher(
+        items=[_item("Coin", coin_path, threshold=0.30), _item("Gem", gem_path, threshold=0.30)],
+        config=MatchConfig(global_threshold=0.30, scales=(1.0,), shortlist_size=2, orb_weight=0.50),
+    )
+
+    monkeypatch.setattr(
+        matcher,
+        "_score_variant_template",
+        lambda _roi_gray, _roi_edges, variant: 0.95 if variant.item.name == "Coin" else 0.90,
+    )
+    monkeypatch.setattr(
+        matcher,
+        "_orb_score_for_variant",
+        lambda variant, _roi_desc, _roi_kp: 0.10 if variant.item.name == "Coin" else 0.95,
+    )
+
+    roi_bgr = np.zeros((72, 72, 3), dtype=np.uint8)
+    result = matcher.match(roi_bgr)
+
+    assert result.matched is True
+    assert result.best_item is not None
+    assert result.best_item.name == "Gem"
