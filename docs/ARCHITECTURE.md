@@ -133,6 +133,9 @@ Templates are loaded at startup and expanded into scale variants (default: `0.90
   - Poll interval (`--poll-ms`)
   - Number of templates and scale variants
 
+- ROI guardrail:
+  - The controller auto-raises ROI radius when configured value is smaller than the largest loaded template.
+
 - Current tradeoff:
   - Better robustness from multi-scale + edge scoring at modest CPU cost.
 

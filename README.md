@@ -48,6 +48,8 @@ Useful flags:
 python main.py --debug --roi-radius 72 --poll-ms 75 --threshold 0.80
 ```
 
+Note: if `--roi-radius` is smaller than your largest template, the app automatically increases it at runtime.
+
 ## One-click launchers (Windows)
 
 - `Run Bazaar Overlay.cmd` - starts the overlay app.
@@ -129,6 +131,7 @@ The tool saves `assets/templates/iron_sword.png` and prints a JSON snippet to pa
 - If false positives occur, increase threshold for specific items.
 - If misses occur due to scale differences, keep item icon size stable and add extra templates for that item.
 - ROI size (`--roi-radius`) is the biggest speed/accuracy tradeoff.
+- If templates are large (wide buttons/icons), keep captures tight, or expect higher CPU due to a larger effective ROI.
 
 ## Key files
 

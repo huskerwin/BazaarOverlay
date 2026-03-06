@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -38,11 +39,19 @@ class TemplateMatcher:
         if not self._variants:
             raise ValueError("No readable template images were loaded.")
 
+        self._max_template_width = max(variant.gray.shape[1] for variant in self._variants)
+        self._max_template_height = max(variant.gray.shape[0] for variant in self._variants)
+
         LOGGER.info(
             "Template matcher ready with %d variants across %d items.",
             len(self._variants),
             len({variant.item.item_id for variant in self._variants}),
         )
+
+    @property
+    def minimum_roi_radius(self) -> int:
+        max_dimension = max(self._max_template_width, self._max_template_height)
+        return max(24, int(math.ceil(max_dimension / 2.0)) + 6)
 
     def match(self, roi_bgr: np.ndarray) -> MatchResult:
         if roi_bgr.size == 0:

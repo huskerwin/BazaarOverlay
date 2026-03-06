@@ -25,8 +25,19 @@ class AppController(QObject):
         self._config = config
 
         self._overlay = overlay
-        self._capture = ScreenCapture(config.capture.roi_radius)
         self._matcher = TemplateMatcher(items=items, config=config.matching)
+
+        requested_radius = config.capture.roi_radius
+        required_radius = self._matcher.minimum_roi_radius
+        effective_radius = max(requested_radius, required_radius)
+        if effective_radius != requested_radius:
+            LOGGER.warning(
+                "ROI radius %d is too small for current templates; using %d.",
+                requested_radius,
+                effective_radius,
+            )
+
+        self._capture = ScreenCapture(effective_radius)
         self._hotkey = HoldHotkeyListener(on_state_change=self._on_hotkey_state, trigger_key="e")
 
         self._state_lock = threading.Lock()

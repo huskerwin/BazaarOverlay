@@ -122,3 +122,18 @@ def test_matcher_reports_empty_capture_region(tmp_path: Path) -> None:
     assert result.best_item is None
     assert result.confidence == 0.0
     assert result.message == "Empty capture region."
+
+
+def test_matcher_exposes_minimum_roi_radius_from_template_size(tmp_path: Path) -> None:
+    template_path = tmp_path / "wide_template.png"
+    wide_template = np.full((20, 40), 25, dtype=np.uint8)
+    cv2.rectangle(wide_template, (6, 5), (33, 14), 210, -1)
+    ok = cv2.imwrite(str(template_path), wide_template)
+    assert ok is True
+
+    matcher = TemplateMatcher(
+        items=[_item("Wide", template_path)],
+        config=MatchConfig(global_threshold=0.80, scales=(1.0,)),
+    )
+
+    assert matcher.minimum_roi_radius == 26
