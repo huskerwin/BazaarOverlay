@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ctypes
+import threading
 from typing import TypedDict
 
 import mss
@@ -31,17 +32,25 @@ def enable_dpi_awareness() -> None:
 class ScreenCapture:
     def __init__(self, roi_radius: int):
         self._roi_radius = max(24, roi_radius)
-        self._mss = mss.mss()
-        self._desktop = self._mss.monitors[0]
+        self._local = threading.local()
+
+    def _session(self) -> tuple[mss.mss, dict[str, int]]:
+        capture = getattr(self._local, "capture", None)
+        if capture is None:
+            capture = mss.mss()
+            self._local.capture = capture
+            self._local.desktop = capture.monitors[0]
+        return capture, self._local.desktop
 
     def capture_around_cursor(self) -> tuple[np.ndarray, tuple[int, int], CaptureRegion]:
+        capture, desktop = self._session()
         cursor_x, cursor_y = win32api.GetCursorPos()
 
-        left = max(self._desktop["left"], cursor_x - self._roi_radius)
-        top = max(self._desktop["top"], cursor_y - self._roi_radius)
+        left = max(desktop["left"], cursor_x - self._roi_radius)
+        top = max(desktop["top"], cursor_y - self._roi_radius)
 
-        right_limit = self._desktop["left"] + self._desktop["width"]
-        bottom_limit = self._desktop["top"] + self._desktop["height"]
+        right_limit = desktop["left"] + desktop["width"]
+        bottom_limit = desktop["top"] + desktop["height"]
 
         right = min(right_limit, cursor_x + self._roi_radius)
         bottom = min(bottom_limit, cursor_y + self._roi_radius)
@@ -53,5 +62,5 @@ class ScreenCapture:
             "height": max(2, int(bottom - top)),
         }
 
-        frame = np.asarray(self._mss.grab(region), dtype=np.uint8)[:, :, :3]
+        frame = np.asarray(capture.grab(region), dtype=np.uint8)[:, :, :3]
         return frame, (cursor_x, cursor_y), region
