@@ -48,6 +48,18 @@ Useful flags:
 python main.py --debug --roi-radius 72 --poll-ms 75 --threshold 0.80
 ```
 
+## One-click launchers (Windows)
+
+- `Run Bazaar Overlay.cmd` - starts the overlay app.
+- `Run Capture Template.cmd` - prompts for item info, then starts template capture in `hotkey-box` mode.
+- `tools/create_shortcut.ps1` - creates desktop shortcuts for both launchers (`Bazaar Overlay.lnk` and `Bazaar Capture Template.lnk`).
+
+Create/refresh desktop shortcuts:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/create_shortcut.ps1
+```
+
 ## Item database format
 
 `data/items.json`
@@ -85,6 +97,14 @@ python tools/capture_template.py iron_sword --threshold 0.82 --name "Iron Sword"
 
 By default, the tool waits for `Shift+C`, takes a screenshot, then opens a selector where you draw a box and press Enter/Space to confirm.
 
+Hotkey-box workflow:
+
+1. Run the command.
+2. Focus the game.
+3. Press `Shift+C`.
+4. Drag a selection box.
+5. Press Enter/Space to confirm (`Esc` cancels).
+
 If you prefer the old cursor-centered square capture mode:
 
 ```bash
@@ -92,6 +112,15 @@ python tools/capture_template.py iron_sword --mode cursor --countdown 3 --size 5
 ```
 
 The tool saves `assets/templates/iron_sword.png` and prints a JSON snippet to paste into `data/items.json`.
+
+## Project layout
+
+- `overlay_app/` - main application modules (hotkey, capture, matcher, UI, controller).
+- `tools/` - helper scripts (`capture_template.py`, `create_shortcut.ps1`).
+- `assets/templates/` - template image files used for matching.
+- `data/items.json` - item manifest and metadata.
+- `tests/` - unit tests for repository loading and template matching.
+- `Run Bazaar Overlay.cmd` / `Run Capture Template.cmd` - click-to-run entry points for Windows.
 
 ## Tuning tips
 

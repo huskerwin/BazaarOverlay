@@ -57,8 +57,14 @@ This document describes how the Bazaar Overlay MVP is structured and how data mo
   - Draws title/body/confidence and clamps position to screen bounds.
 
 - `tools/capture_template.py`
-  - Utility for capturing template images around cursor.
+  - Utility for capturing template images in either `hotkey-box` mode (`Shift+C` + draw box) or cursor mode.
   - Prints a manifest snippet to speed up item DB expansion.
+
+- `Run Bazaar Overlay.cmd` / `Run Capture Template.cmd`
+  - Windows launcher scripts for one-click execution.
+
+- `tools/create_shortcut.ps1`
+  - Creates desktop shortcuts for both launcher scripts.
 
 ## Runtime architecture
 
