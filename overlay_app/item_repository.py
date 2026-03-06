@@ -45,6 +45,18 @@ class ItemRepository:
             LOGGER.warning("Skipping item %d: expected object.", index)
             return None
 
+        enabled_raw = raw_item.get("enabled", True)
+        if isinstance(enabled_raw, bool):
+            if not enabled_raw:
+                LOGGER.info("Skipping disabled item at index %d.", index)
+                return None
+        elif enabled_raw is not None:
+            LOGGER.warning(
+                "Item %d has non-boolean 'enabled' value '%s'. Treating as enabled.",
+                index,
+                enabled_raw,
+            )
+
         name = raw_item.get("name")
         if not isinstance(name, str) or not name.strip():
             LOGGER.warning("Skipping item %d: missing 'name'.", index)

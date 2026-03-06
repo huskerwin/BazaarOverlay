@@ -86,6 +86,39 @@ def test_load_items_clamps_threshold_and_skips_missing_template(tmp_path: Path) 
     assert items[0].threshold == pytest.approx(0.99)
 
 
+def test_load_items_skips_disabled_entries(tmp_path: Path) -> None:
+    active_template = tmp_path / "active.png"
+    disabled_template = tmp_path / "disabled.png"
+    active_template.write_bytes(b"placeholder")
+    disabled_template.write_bytes(b"placeholder")
+
+    manifest_path = tmp_path / "items.json"
+    _write_manifest(
+        manifest_path,
+        {
+            "items": [
+                {
+                    "id": "disabled_item",
+                    "name": "Disabled Item",
+                    "template": "disabled.png",
+                    "enabled": False,
+                },
+                {
+                    "id": "active_item",
+                    "name": "Active Item",
+                    "template": "active.png",
+                    "enabled": True,
+                },
+            ]
+        },
+    )
+
+    items = ItemRepository().load_items(manifest_path)
+
+    assert len(items) == 1
+    assert items[0].item_id == "active_item"
+
+
 def test_load_items_raises_when_manifest_has_no_valid_items(tmp_path: Path) -> None:
     manifest_path = tmp_path / "items.json"
     _write_manifest(

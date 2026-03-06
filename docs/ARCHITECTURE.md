@@ -92,6 +92,7 @@ Each iteration does:
 
 - Manifest path: `data/items.json`
 - Item fields:
+  - `enabled` (optional; `false` skips the item without deleting it)
   - `id` (optional; generated from name if omitted)
   - `name` (required)
   - `template` (single path) and/or `templates` (list of paths)

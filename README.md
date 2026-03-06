@@ -84,6 +84,7 @@ Supported fields:
 - `name` (required)
 - `template` (single image path)
 - `templates` (optional list of image paths)
+- `enabled` (optional boolean, set `false` to keep an item in the file but exclude it from matching)
 - `threshold` (optional per-item confidence threshold)
 - `info` (optional text shown in overlay)
 
