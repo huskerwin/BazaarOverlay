@@ -80,10 +80,18 @@ Supported fields:
 Use the helper tool while your game is open:
 
 ```bash
-python tools/capture_template.py iron_sword --countdown 3 --size 56 --threshold 0.82 --name "Iron Sword"
+python tools/capture_template.py iron_sword --threshold 0.82 --name "Iron Sword"
 ```
 
-It saves `assets/templates/iron_sword.png` and prints a JSON snippet to paste into `data/items.json`.
+By default, the tool waits for `Shift+C`, takes a screenshot, then opens a selector where you draw a box and press Enter/Space to confirm.
+
+If you prefer the old cursor-centered square capture mode:
+
+```bash
+python tools/capture_template.py iron_sword --mode cursor --countdown 3 --size 56 --threshold 0.82 --name "Iron Sword"
+```
+
+The tool saves `assets/templates/iron_sword.png` and prints a JSON snippet to paste into `data/items.json`.
 
 ## Tuning tips
 
