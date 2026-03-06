@@ -94,6 +94,10 @@ It saves `assets/templates/iron_sword.png` and prints a JSON snippet to paste in
 - `overlay_app/item_repository.py` - JSON item database loader
 - `tools/capture_template.py` - template capture helper
 
+## Architecture documentation
+
+- `docs/ARCHITECTURE.md` - system design, module responsibilities, runtime flow, and extension points
+
 ## Known limitations
 
 - Template matching can confuse visually similar icons.
