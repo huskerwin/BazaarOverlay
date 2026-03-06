@@ -27,6 +27,13 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
+## Run tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
 ## Run
 
 ```bash
