@@ -30,6 +30,20 @@
       "template": "assets/templates/start_button.png",
       "threshold": 0.82,
       "info": "Start button UI element."
+    },
+    {
+      "id": "chest_icon",
+      "name": "Chest",
+      "template": "assets/templates/chest_icon.png",
+      "threshold": 0.82,
+      "info": "Chest icon UI element."
+    },
+    {
+      "id": "rank_symbol",
+      "name": "Rank Symbol",
+      "template": "assets/templates/rank_symbol.png",
+      "threshold": 0.82,
+      "info": "Rank symbol UI element."
     }
   ]
 }
