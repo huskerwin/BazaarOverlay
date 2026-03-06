@@ -1,0 +1,25 @@
+{
+  "items": [
+    {
+      "id": "demo_coin",
+      "name": "Demo Coin",
+      "template": "assets/templates/demo_coin.pgm",
+      "threshold": 0.86,
+      "info": "Sample entry. Replace this template with a real game item icon."
+    },
+    {
+      "id": "demo_gem",
+      "name": "Demo Gem",
+      "template": "assets/templates/demo_gem.pgm",
+      "threshold": 0.84,
+      "info": "Sample entry. Replace this template with a real game item icon."
+    },
+    {
+      "id": "demo_scroll",
+      "name": "Demo Scroll",
+      "template": "assets/templates/demo_scroll.pgm",
+      "threshold": 0.83,
+      "info": "Sample entry. Replace this template with a real game item icon."
+    }
+  ]
+}
