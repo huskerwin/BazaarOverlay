@@ -143,6 +143,42 @@ The tool saves `assets/templates/iron_sword.png` and prints a JSON snippet to pa
 - `overlay_app/overlay_window.py` - transparent overlay rendering
 - `overlay_app/item_repository.py` - JSON item database loader
 - `tools/capture_template.py` - template capture helper
+- `tools/scrape_bazaardb_items.py` - BazaarDB item image scraper for building template libraries
+
+## Scraping item templates
+
+Use this when you want to download publicly visible item images from BazaarDB into a local `templates/` folder.
+
+Install scraper dependencies:
+
+```bash
+pip install -r requirements-scraper.txt
+playwright install chromium
+```
+
+Inspect rendering mode (helps confirm static vs dynamic loading):
+
+```bash
+python tools/scrape_bazaardb_items.py --inspect-only
+```
+
+Run scraper (auto mode picks Playwright when needed):
+
+```bash
+python tools/scrape_bazaardb_items.py --mode auto --templates-dir templates
+```
+
+Useful options:
+
+- `--limit 50` for quick dry-runs
+- `--download-delay 0.25` for slower rate limiting
+- `--metadata-csv templates/items.csv --metadata-json templates/items.json`
+- `--insecure` only if your local environment has TLS certificate issues
+
+What the scraper writes:
+
+- `templates/<sanitized_item_name>.png`
+- metadata files with item name, source page URL, image URL, local filename, and status (`downloaded`/`skipped`/`failed`)
 
 ## Architecture documentation
 
