@@ -6,7 +6,7 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class CaptureConfig:
-    roi_radius: int = 72
+    roi_radius: int = 150
     poll_interval_ms: int = 75
 
 
