@@ -43,19 +43,26 @@ class OcrItemDetector:
             results = self._reader.readtext(crop, detail=0)
             
             if not results:
+                LOGGER.info("OCR: No text detected")
                 return None
             
             text_results: list[str] = [str(r) for r in results]
             combined_text = ' '.join(text_results)
+            LOGGER.info("OCR raw text: '%s'", combined_text)
+            
             cleaned = self._clean_text(combined_text)
+            LOGGER.info("OCR cleaned text: '%s'", cleaned)
+            
             if not cleaned:
                 return None
             
             match = self._find_best_match(cleaned)
             if match:
+                LOGGER.info("OCR matched to: '%s'", match)
                 self._last_result = match
                 return match
             
+            LOGGER.info("OCR: No match found for '%s'", cleaned)
             return None
             
         except Exception as exc:
