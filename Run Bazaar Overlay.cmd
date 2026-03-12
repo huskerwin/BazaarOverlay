@@ -16,7 +16,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-"%PY_EXE%" main.py --ocr
+"%PY_EXE%" main.py --ocr --debug
 set "EXIT_CODE=%ERRORLEVEL%"
 if not "%EXIT_CODE%"=="0" (
     echo.
