@@ -11,7 +11,7 @@ import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Iterable
-from urllib.parse import parse_qs, urljoin, urlparse
+from urllib.parse import parse_qs, urljoin, urlparse, quote
 
 import cv2
 import numpy as np
@@ -29,6 +29,12 @@ DEFAULT_USER_AGENT = (
     "AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/123.0.0.0 Safari/537.36 BazaarTemplateScraper/1.0"
 )
+
+SIZE_MAP = {
+    "small": 256,
+    "medium": 256,
+    "large": 400,
+}
 
 INVALID_FILENAME_CHARS = re.compile(r"[<>:\"/\|?*\x00-\x1f]")
 MULTI_UNDERSCORE = re.compile(r"_+")
@@ -152,6 +158,12 @@ def parse_args() -> argparse.Namespace:
         choices=("DEBUG", "INFO", "WARNING", "ERROR"),
         help="Logging verbosity.",
     )
+    parser.add_argument(
+        "--size",
+        default="medium",
+        choices=("small", "medium", "large"),
+        help="Image size to download (small=128, medium=256, large=512).",
+    )
     return parser.parse_args()
 
 
@@ -213,6 +225,14 @@ def normalize_image_url(raw_url: str, base_url: str) -> str:
     if candidate.startswith("//"):
         candidate = f"https:{candidate}"
     return urljoin(base_url, candidate)
+
+
+def convert_image_url_size(image_url: str, size: int) -> str:
+    """Convert image URL to requested size by replacing the @xxx pattern."""
+    if size == 400:
+        return re.sub(r'@\d+', '@400L', image_url)
+    else:
+        return re.sub(r'@(\d+)L*\.webp', f'@{size}.webp', image_url)
 
 
 def parse_img_candidate(img_tag) -> str:
@@ -558,8 +578,12 @@ def download_images(
     verify_ssl: bool,
     polite_delay: float,
     limit: int,
+    size: str = "medium",
 ) -> list[DownloadRecord]:
     templates_dir.mkdir(parents=True, exist_ok=True)
+
+    size_value = SIZE_MAP.get(size, 256)
+    logging.info("Downloading images at size: %s (%dpx)", size, size_value)
 
     hash_to_filename = load_existing_hashes(templates_dir)
     image_url_to_filename: dict[str, str] = {}
@@ -569,15 +593,25 @@ def download_images(
     selected_entries = entries if limit <= 0 else entries[:limit]
 
     for idx, entry in enumerate(selected_entries, start=1):
+        # Try primary size first
+        sized_url = convert_image_url_size(entry.image_url, size_value)
+        
+        # If requesting large (400L) and not available, fall back to 256
+        if size_value == 400:
+            response = session.head(sized_url, timeout=timeout, verify=verify_ssl, allow_redirects=True)
+            if response.status_code == 404:
+                sized_url = convert_image_url_size(entry.image_url, 256)
+                logging.debug("400L not available, falling back to 256 for %s", entry.item_name)
+        
         logging.info("[download] %d/%d %s", idx, len(selected_entries), entry.item_name)
 
-        existing_from_url = image_url_to_filename.get(entry.image_url)
+        existing_from_url = image_url_to_filename.get(sized_url)
         if existing_from_url:
             records.append(
                 DownloadRecord(
                     item_name=entry.item_name,
                     source_page_url=entry.source_page_url,
-                    image_url=entry.image_url,
+                    image_url=sized_url,
                     local_filename=existing_from_url,
                     status="skipped",
                     reason="duplicate-image-url",
@@ -586,14 +620,14 @@ def download_images(
             continue
 
         try:
-            response = session.get(entry.image_url, timeout=timeout, verify=verify_ssl)
+            response = session.get(sized_url, timeout=timeout, verify=verify_ssl)
             response.raise_for_status()
         except Exception as exc:
             records.append(
                 DownloadRecord(
                     item_name=entry.item_name,
                     source_page_url=entry.source_page_url,
-                    image_url=entry.image_url,
+                    image_url=sized_url,
                     local_filename="",
                     status="failed",
                     reason=f"http-error: {exc}",
@@ -607,7 +641,7 @@ def download_images(
                 DownloadRecord(
                     item_name=entry.item_name,
                     source_page_url=entry.source_page_url,
-                    image_url=entry.image_url,
+                    image_url=sized_url,
                     local_filename="",
                     status="failed",
                     reason="decode-or-encode-failed",
@@ -618,12 +652,12 @@ def download_images(
         digest = hashlib.sha256(png_bytes).hexdigest()
         existing_from_hash = hash_to_filename.get(digest)
         if existing_from_hash:
-            image_url_to_filename[entry.image_url] = existing_from_hash
+            image_url_to_filename[sized_url] = existing_from_hash
             records.append(
                 DownloadRecord(
                     item_name=entry.item_name,
                     source_page_url=entry.source_page_url,
-                    image_url=entry.image_url,
+                    image_url=sized_url,
                     local_filename=existing_from_hash,
                     status="skipped",
                     reason="duplicate-image-content",
@@ -637,13 +671,13 @@ def download_images(
         output_path.write_bytes(png_bytes)
 
         hash_to_filename[digest] = local_filename
-        image_url_to_filename[entry.image_url] = local_filename
+        image_url_to_filename[sized_url] = local_filename
 
         records.append(
             DownloadRecord(
                 item_name=entry.item_name,
                 source_page_url=entry.source_page_url,
-                image_url=entry.image_url,
+                image_url=sized_url,
                 local_filename=local_filename,
                 status="downloaded",
                 reason="ok",
@@ -757,6 +791,7 @@ def main() -> int:
         verify_ssl=verify_ssl,
         polite_delay=max(0.0, float(args.download_delay)),
         limit=max(0, int(args.limit)),
+        size=args.size,
     )
 
     csv_path = args.metadata_csv or (args.templates_dir / "items.csv")
