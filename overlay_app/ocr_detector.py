@@ -45,7 +45,8 @@ class OcrItemDetector:
             if not results:
                 return None
             
-            combined_text = ' '.join(results)
+            text_results: list[str] = [str(r) for r in results]
+            combined_text = ' '.join(text_results)
             cleaned = self._clean_text(combined_text)
             if not cleaned:
                 return None
@@ -67,6 +68,13 @@ class OcrItemDetector:
         text = re.sub(r'[^a-zA-Z0-9\'\s]', '', text)
         return text.strip()
     
+    def _normalize_for_match(self, text: str) -> str:
+        text = text.lower()
+        text = text.replace("'", "")
+        words = text.split()
+        normalized_words = [w.rstrip('s') for w in words]
+        return ' '.join(normalized_words)
+    
     def _find_best_match(self, text: str) -> str | None:
         text_lower = text.lower()
         
@@ -75,6 +83,19 @@ class OcrItemDetector:
         
         for name_lower, original_name in self._item_names.items():
             if name_lower in text_lower or text_lower in name_lower:
+                return original_name
+        
+        text_no_apostrophe = text_lower.replace("'", "")
+        for name_lower, original_name in self._item_names.items():
+            name_no_apostrophe = name_lower.replace("'", "")
+            if name_no_apostrophe in text_no_apostrophe or text_no_apostrophe in name_no_apostrophe:
+                return original_name
+        
+        text_normalized = self._normalize_for_match(text_lower)
+        for name_lower, original_name in self._item_names.items():
+            name_no_apostrophe = name_lower.replace("'", "")
+            name_normalized = self._normalize_for_match(name_no_apostrophe)
+            if name_normalized in text_normalized or text_normalized in name_normalized:
                 return original_name
         
         return None

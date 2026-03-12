@@ -49,6 +49,12 @@ This document describes how the Bazaar Overlay MVP is structured and how data mo
   - Applies a center-bias term so matches near cursor/ROI center are favored over corner matches.
   - Produces a thresholded match decision with blended confidence.
 
+- `overlay_app/ocr_detector.py`
+  - OCR-based item detection using EasyOCR.
+  - Reads text from a configurable region around the cursor.
+  - Matches extracted text against known item names from the item database.
+  - Faster than template matching for large item databases.
+
 - `overlay_app/controller.py`
   - Orchestrates hotkey, capture, match, and overlay updates.
   - Applies temporal smoothing and a minimum stable-frame requirement before showing a positive match.
@@ -81,7 +87,9 @@ The controller uses an event gate (`threading.Event`) to run detection only whil
 
 ### Detection loop details
 
-Each iteration does:
+The controller supports two detection modes:
+
+#### Template Matching Mode (default)
 
 1. Capture ROI around cursor (`roi_radius` from config).
 2. Convert ROI to normalized grayscale and edges.
@@ -92,6 +100,17 @@ Each iteration does:
 7. Compare smoothed score against per-item threshold or global fallback.
 8. Emit overlay payload with text and confidence.
 9. Sleep to maintain configured polling interval.
+
+#### OCR Mode (alternative)
+
+When `--ocr` flag is enabled:
+1. Capture ROI around cursor.
+2. Extract text from configured region using EasyOCR.
+3. Match extracted text against item names from the database.
+4. Apply temporal smoothing for stability.
+5. Emit overlay payload with matched item info.
+
+OCR mode is typically faster for large template databases but requires the game to display item names in a consistent location.
 
 ## Data model
 

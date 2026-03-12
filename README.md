@@ -50,6 +50,31 @@ python main.py --debug --roi-radius 72 --poll-ms 75 --threshold 0.80
 
 Note: if `--roi-radius` is smaller than your largest template, the app automatically increases it at runtime.
 
+### OCR Mode (Alternative Detection)
+
+The app supports two detection modes:
+
+1. **Template Matching** (default) - Uses image matching against template files
+2. **OCR Mode** - Uses OCR to read item names from the game hover text
+
+OCR mode is faster when you have many templates. To use OCR mode:
+
+```bash
+python main.py --ocr --debug
+```
+
+Configure the OCR region to match where item names appear in the game:
+
+```bash
+python main.py --ocr --debug --ocr-region "50,30,200,40"
+```
+
+The `--ocr-region` format is `x,y,width,height` (pixels relative to cursor). Use `--debug` to visualize the green OCR capture box while configuring.
+
+Switch between modes:
+- Template matching: `--ocr` flag absent
+- OCR mode: `--ocr` flag present
+
 ## One-click launchers (Windows)
 
 - `Run Bazaar Overlay.cmd` - starts the overlay app.
@@ -138,10 +163,12 @@ The tool saves `assets/templates/iron_sword.png` and prints a JSON snippet to pa
 ## Key files
 
 - `main.py` - app entry point
-- `overlay_app/controller.py` - hotkey to capture/match/render orchestration
+- `overlay_app hotkey to capture/controller.py` -/match/render orchestration
 - `overlay_app/template_matcher.py` - hybrid matching engine (template shortlist + ORB re-ranking)
+- `overlay_app/ocr_detector.py` - OCR-based item detection using EasyOCR
 - `overlay_app/overlay_window.py` - transparent overlay rendering
 - `overlay_app/item_repository.py` - JSON item database loader
+- `overlay_app/config.py` - configuration dataclasses
 - `tools/capture_template.py` - template capture helper
 - `tools/scrape_bazaardb_items.py` - BazaarDB item image scraper for building template libraries
 
