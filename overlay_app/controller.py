@@ -47,6 +47,7 @@ class AppController(QObject):
         
         self._use_ocr = config.ocr.enabled
         self._show_ocr_region = config.debug and config.ocr.enabled
+        LOGGER.info("Debug mode: %s, OCR enabled: %s, Show OCR region: %s", config.debug, config.ocr.enabled, self._show_ocr_region)
         if self._use_ocr:
             item_names = {item.name for item in items}
             self._ocr_detector = OcrItemDetector(item_names)
@@ -168,7 +169,10 @@ class AppController(QObject):
             if 0 <= x < roi_bgr.shape[1] and 0 <= y < roi_bgr.shape[0]:
                 x2 = min(x + w, roi_bgr.shape[1])
                 y2 = min(y + h, roi_bgr.shape[0])
-                cv2.rectangle(debug_image, (x, y), (x2, y2), (0, 255, 0), 2)
+                cv2.rectangle(debug_image, (x, y), (x2, y2), (0, 0, 255), 3)
+                cv2.putText(debug_image, "OCR", (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+            
+            cv2.putText(debug_image, f"ROI: {roi_bgr.shape[1]}x{roi_bgr.shape[0]}", (10, roi_bgr.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1)
         
         item_name = self._ocr_detector.detect_from_image(roi_bgr, self._ocr_region)
         
