@@ -36,6 +36,12 @@ SIZE_MAP = {
     "large": 400,
 }
 
+SIZE_URLS = {
+    "small": "https://bazaardb.gg/search?c=items&q=s:small",
+    "medium": "https://bazaardb.gg/search?c=items&q=s:medium",
+    "large": "https://bazaardb.gg/search?c=items&q=s:large",
+}
+
 INVALID_FILENAME_CHARS = re.compile(r"[<>:\"/\|?*\x00-\x1f]")
 MULTI_UNDERSCORE = re.compile(r"_+")
 
@@ -45,6 +51,7 @@ class ItemImageEntry:
     item_name: str
     source_page_url: str
     image_url: str
+    size: str = "medium"  # small, medium, or large
 
 
 @dataclass(frozen=True)
@@ -162,7 +169,12 @@ def parse_args() -> argparse.Namespace:
         "--size",
         default="medium",
         choices=("small", "medium", "large"),
-        help="Image size to download (small=128, medium=256, large=512).",
+        help="Image size to download (small=256, medium=256, large=400).",
+    )
+    parser.add_argument(
+        "--auto-size",
+        action="store_true",
+        help="Automatically detect item sizes and download appropriate resolution.",
     )
     return parser.parse_args()
 
@@ -524,6 +536,79 @@ def crawl_playwright_mode(
     return list(collected.values())
 
 
+def crawl_playwright_by_size(
+    max_scrolls: int,
+    scroll_wait_ms: int,
+    headless: bool,
+    user_agent: str,
+) -> list[ItemImageEntry]:
+    """Crawl items grouped by size category using separate URLs."""
+    try:
+        from playwright.sync_api import sync_playwright  # type: ignore[import-not-found]
+    except ImportError as exc:
+        raise RuntimeError(
+            "Playwright is required for dynamic scraping. Install with: pip install playwright"
+        ) from exc
+
+    collected: dict[tuple[str, str], ItemImageEntry] = {}
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=headless)
+        context = browser.new_context(user_agent=user_agent)
+        
+        for size_name, size_url in SIZE_URLS.items():
+            logging.info("[playwright] Fetching %s items from %s", size_name, size_url)
+            page = context.new_page()
+            page.goto(size_url, wait_until="domcontentloaded", timeout=90000)
+            page.wait_for_timeout(1500)
+            
+            stale_rounds = 0
+            for index in range(max_scrolls):
+                cards = _collect_playwright_cards(page)
+                before = len(collected)
+                for card in cards:
+                    image_url = normalize_image_url(card.get("image_url", ""), BASE_URL)
+                    source_page_url = urljoin(BASE_URL, card.get("source_page_url", ""))
+                    if not image_url or not source_page_url:
+                        continue
+
+                    item_name = normalize_item_name(card.get("item_name", ""), source_page_url)
+                    key = (source_page_url, image_url)
+                    
+                    # Only add if not already present (first size wins)
+                    if key not in collected:
+                        collected[key] = ItemImageEntry(
+                            item_name=item_name,
+                            source_page_url=source_page_url,
+                            image_url=image_url,
+                            size=size_name,
+                        )
+
+                discovered_now = len(collected) - before
+                logging.info(
+                    "[playwright] %s scroll %d/%d -> %d total (+%d)",
+                    size_name, index + 1, max_scrolls, len(collected), discovered_now,
+                )
+
+                if discovered_now == 0:
+                    stale_rounds += 1
+                else:
+                    stale_rounds = 0
+
+                if stale_rounds >= 3:
+                    break
+
+                page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                page.wait_for_timeout(max(150, scroll_wait_ms))
+            
+            page.close()
+        
+        context.close()
+        browser.close()
+
+    return list(collected.values())
+
+
 def choose_mode(requested_mode: str, inspection: dict[str, object]) -> str:
     if requested_mode != "auto":
         return requested_mode
@@ -582,8 +667,12 @@ def download_images(
 ) -> list[DownloadRecord]:
     templates_dir.mkdir(parents=True, exist_ok=True)
 
-    size_value = SIZE_MAP.get(size, 256)
-    logging.info("Downloading images at size: %s (%dpx)", size, size_value)
+    default_size_value = SIZE_MAP.get(size, 256)
+    has_auto_size = any(getattr(e, 'size', None) for e in entries)
+    if has_auto_size:
+        logging.info("Downloading images with auto-size detection")
+    else:
+        logging.info("Downloading images at size: %s (%dpx)", size, default_size_value)
 
     hash_to_filename = load_existing_hashes(templates_dir)
     image_url_to_filename: dict[str, str] = {}
@@ -593,6 +682,10 @@ def download_images(
     selected_entries = entries if limit <= 0 else entries[:limit]
 
     for idx, entry in enumerate(selected_entries, start=1):
+        # Use item's size attribute if available, otherwise use global size
+        item_size = getattr(entry, 'size', None) or size
+        size_value = SIZE_MAP.get(item_size, default_size_value)
+        
         # Try primary size first
         sized_url = convert_image_url_size(entry.image_url, size_value)
         
@@ -603,7 +696,7 @@ def download_images(
                 sized_url = convert_image_url_size(entry.image_url, 256)
                 logging.debug("400L not available, falling back to 256 for %s", entry.item_name)
         
-        logging.info("[download] %d/%d %s", idx, len(selected_entries), entry.item_name)
+        logging.info("[download] %d/%d %s (size: %s)", idx, len(selected_entries), entry.item_name, item_size)
 
         existing_from_url = image_url_to_filename.get(sized_url)
         if existing_from_url:
@@ -764,13 +857,21 @@ def main() -> int:
                 polite_delay=max(0.0, float(args.download_delay)),
             )
         else:
-            entries = crawl_playwright_mode(
-                start_url=args.url,
-                max_scrolls=max(1, int(args.max_scrolls)),
-                scroll_wait_ms=max(100, int(args.scroll_wait_ms)),
-                headless=not bool(args.headful),
-                user_agent=args.user_agent,
-            )
+            if args.auto_size:
+                entries = crawl_playwright_by_size(
+                    max_scrolls=max(1, int(args.max_scrolls)),
+                    scroll_wait_ms=max(100, int(args.scroll_wait_ms)),
+                    headless=not bool(args.headful),
+                    user_agent=args.user_agent,
+                )
+            else:
+                entries = crawl_playwright_mode(
+                    start_url=args.url,
+                    max_scrolls=max(1, int(args.max_scrolls)),
+                    scroll_wait_ms=max(100, int(args.scroll_wait_ms)),
+                    headless=not bool(args.headful),
+                    user_agent=args.user_agent,
+                )
     except Exception as exc:
         logging.error("Discovery failed in %s mode: %s", mode, exc)
         if mode == "playwright":
