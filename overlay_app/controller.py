@@ -5,6 +5,7 @@ import threading
 import time
 from typing import TypedDict
 
+import cv2
 import numpy as np
 from PySide6.QtCore import QObject, Signal
 
@@ -45,6 +46,7 @@ class AppController(QObject):
         self._matcher = TemplateMatcher(items=items, config=config.matching)
         
         self._use_ocr = config.ocr.enabled
+        self._show_ocr_region = config.debug and config.ocr.enabled
         if self._use_ocr:
             item_names = {item.name for item in items}
             self._ocr_detector = OcrItemDetector(item_names)
@@ -121,14 +123,15 @@ class AppController(QObject):
 
             started = time.perf_counter()
             try:
+                debug_image = None
                 if self._use_ocr:
-                    result, cursor_pos = self._ocr_detect()
+                    result, cursor_pos, debug_image = self._ocr_detect()
                 else:
                     roi_bgr, cursor_pos, _region = self._capture.capture_around_cursor()
                     result = self._matcher.match(roi_bgr)
                 result = self._stabilize_result(result)
                 elapsed_ms = (time.perf_counter() - started) * 1000.0
-                payload = self._build_overlay_payload(cursor_pos, result, elapsed_ms)
+                payload = self._build_overlay_payload(cursor_pos, result, elapsed_ms, debug_image)
                 self.overlay_show.emit(payload)
             except Exception:
                 LOGGER.exception("Detection loop error.")
@@ -139,6 +142,7 @@ class AppController(QObject):
                         body="Check logs and template files, then retry.",
                         confidence_text="Runtime error",
                         matched=False,
+                        debug_image=None,
                     )
                 )
                 time.sleep(0.20)
@@ -152,6 +156,20 @@ class AppController(QObject):
     def _ocr_detect(self) -> tuple[MatchResult, tuple[int, int]]:
         roi_bgr, cursor_pos, _region = self._capture.capture_around_cursor()
         
+        debug_image = None
+        if self._show_ocr_region and roi_bgr is not None and roi_bgr.size > 0:
+            debug_image = roi_bgr.copy()
+            
+            x = self._ocr_region["left"]
+            y = self._ocr_region["top"]
+            w = self._ocr_region["width"]
+            h = self._ocr_region["height"]
+            
+            if 0 <= x < roi_bgr.shape[1] and 0 <= y < roi_bgr.shape[0]:
+                x2 = min(x + w, roi_bgr.shape[1])
+                y2 = min(y + h, roi_bgr.shape[0])
+                cv2.rectangle(debug_image, (x, y), (x2, y2), (0, 255, 0), 2)
+        
         item_name = self._ocr_detector.detect_from_image(roi_bgr, self._ocr_region)
         
         if item_name and item_name in self._items_by_name:
@@ -163,7 +181,7 @@ class AppController(QObject):
                 item=item,
                 best_item=item,
                 message=item.info or f"Matched '{item.name}'",
-            ), cursor_pos
+            ), cursor_pos, debug_image
         
         return MatchResult(
             matched=False,
@@ -172,7 +190,7 @@ class AppController(QObject):
             item=None,
             best_item=None,
             message="No match found",
-        ), cursor_pos
+        ), cursor_pos, debug_image
 
     def _reset_temporal_state(self) -> None:
         self._last_candidate_id = None
@@ -231,6 +249,7 @@ class AppController(QObject):
         cursor_pos: tuple[int, int],
         result: MatchResult,
         elapsed_ms: float,
+        debug_image: np.ndarray | None = None,
     ) -> OverlayPayload:
         if result.matched and result.item is not None:
             title = result.item.name
@@ -257,4 +276,5 @@ class AppController(QObject):
             body=body,
             confidence_text=confidence_text,
             matched=matched,
+            debug_image=debug_image,
         )

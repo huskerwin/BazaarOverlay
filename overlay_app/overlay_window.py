@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import logging
 
+import numpy as np
 from PySide6.QtCore import QPoint, Qt
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QGuiApplication, QPainter, QPen
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QGuiApplication, QImage, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
 from .config import OverlayConfig
@@ -28,6 +29,7 @@ class OverlayWindow(QWidget):
         self._body = ""
         self._confidence = ""
         self._matched = False
+        self._debug_image: np.ndarray | None = None
 
         self._padding = 12
         self._line_gap = 6
@@ -54,6 +56,7 @@ class OverlayWindow(QWidget):
         self._body = payload.body
         self._confidence = payload.confidence_text
         self._matched = payload.matched
+        self._debug_image = payload.debug_image
 
         self._recompute_size()
         self._move_near_cursor(payload.cursor_pos)
@@ -128,6 +131,14 @@ class OverlayWindow(QWidget):
             int(Qt.TextWordWrap | Qt.AlignLeft | Qt.AlignTop),
             self._confidence,
         )
+
+        if self._debug_image is not None and self._debug_image.size > 0:
+            h, w = self._debug_image.shape[:2]
+            if h > 0 and w > 0 and h <= 300 and w <= 400:
+                rgb_image = self._debug_image[:, :, ::-1].copy()
+                qimg = QImage(rgb_image.data, w, h, w * 3, QImage.Format_RGB888)
+                img_y = conf_rect.bottom() + self._line_gap
+                painter.drawImage(self._padding, img_y, qimg.scaled(200, 150, Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
     def _recompute_size(self) -> None:
         text_width = self._config.width - (self._padding * 2)

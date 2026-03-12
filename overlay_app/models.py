@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
+
 
 @dataclass(frozen=True)
 class ItemDefinition:
@@ -30,3 +32,4 @@ class OverlayPayload:
     body: str
     confidence_text: str
     matched: bool
+    debug_image: np.ndarray | None = None
