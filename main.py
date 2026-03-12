@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
-from overlay_app.config import AppConfig, CaptureConfig, MatchConfig
+from overlay_app.config import AppConfig, CaptureConfig, MatchConfig, OcrConfig
 from overlay_app.controller import AppController
 from overlay_app.item_repository import ItemRepository
 from overlay_app.overlay_window import OverlayWindow
@@ -48,6 +48,17 @@ def parse_args() -> argparse.Namespace:
         default=0.80,
         help="Global fallback confidence threshold (0-1).",
     )
+    parser.add_argument(
+        "--ocr",
+        action="store_true",
+        help="Use OCR-based detection instead of template matching.",
+    )
+    parser.add_argument(
+        "--ocr-region",
+        type=str,
+        default="0,0,200,50",
+        help="OCR region as 'x,y,width,height' relative to cursor.",
+    )
     return parser.parse_args()
 
 
@@ -63,11 +74,27 @@ def build_config(args: argparse.Namespace) -> AppConfig:
         roi_radius=max(24, int(args.roi_radius)),
         poll_interval_ms=max(25, int(args.poll_ms)),
     )
+    
+    ocr_region = args.ocr_region.split(",")
+    if len(ocr_region) == 4:
+        ocr_x, ocr_y, ocr_w, ocr_h = map(int, ocr_region)
+    else:
+        ocr_x, ocr_y, ocr_w, ocr_h = 0, 0, 200, 50
+    
+    ocr = OcrConfig(
+        enabled=bool(args.ocr),
+        region_x=ocr_x,
+        region_y=ocr_y,
+        region_width=ocr_w,
+        region_height=ocr_h,
+    )
+    
     matching = MatchConfig(global_threshold=max(0.05, min(0.99, float(args.threshold))))
     return AppConfig(
         items_path=args.items.resolve(),
         debug=bool(args.debug),
         capture=capture,
+        ocr=ocr,
         matching=matching,
     )
 
@@ -94,8 +121,9 @@ def main() -> int:
     controller.start()
     app.aboutToQuit.connect(controller.shutdown)
 
+    mode = "OCR" if config.ocr.enabled else "Template Matching"
     logging.getLogger("overlay.main").info(
-        "Running. Hold Shift+E over an item to show overlay."
+        "Running in %s mode. Hold Shift+E over an item to show overlay.", mode
     )
     return app.exec()
 

@@ -3,17 +3,27 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from typing import TypedDict
 
+import numpy as np
 from PySide6.QtCore import QObject, Signal
 
 from .config import AppConfig
 from .hotkey_listener import HoldHotkeyListener
 from .models import ItemDefinition, MatchResult, OverlayPayload
+from .ocr_detector import OcrItemDetector
 from .overlay_window import OverlayWindow
 from .screen_capture import ScreenCapture
 from .template_matcher import TemplateMatcher
 
 LOGGER = logging.getLogger("overlay.controller")
+
+
+class OcrRegion(TypedDict):
+    left: int
+    top: int
+    width: int
+    height: int
 
 
 class AppController(QObject):
@@ -27,11 +37,24 @@ class AppController(QObject):
         self._stable_frames_required = max(1, int(config.matching.stable_frames_required))
         self._temporal_alpha = float(max(0.05, min(0.95, config.matching.temporal_smoothing_alpha)))
         self._last_candidate_id: str | None = None
+        self._last_candidate_name: str | None = None
         self._candidate_streak = 0
         self._smoothed_confidence = 0.0
 
         self._overlay = overlay
         self._matcher = TemplateMatcher(items=items, config=config.matching)
+        
+        self._use_ocr = config.ocr.enabled
+        if self._use_ocr:
+            item_names = {item.name for item in items}
+            self._ocr_detector = OcrItemDetector(item_names)
+            self._ocr_region: OcrRegion = {
+                "left": config.ocr.region_x,
+                "top": config.ocr.region_y,
+                "width": config.ocr.region_width,
+                "height": config.ocr.region_height,
+            }
+            LOGGER.info("OCR detection enabled with region: %s", self._ocr_region)
 
         requested_radius = config.capture.roi_radius
         required_radius = self._matcher.minimum_roi_radius
@@ -45,6 +68,8 @@ class AppController(QObject):
 
         self._capture = ScreenCapture(effective_radius)
         self._hotkey = HoldHotkeyListener(on_state_change=self._on_hotkey_state, trigger_key="e")
+        
+        self._items_by_name: dict[str, ItemDefinition] = {item.name: item for item in items}
 
         self._state_lock = threading.Lock()
         self._active = False
@@ -96,8 +121,11 @@ class AppController(QObject):
 
             started = time.perf_counter()
             try:
-                roi_bgr, cursor_pos, _region = self._capture.capture_around_cursor()
-                result = self._matcher.match(roi_bgr)
+                if self._use_ocr:
+                    result, cursor_pos = self._ocr_detect()
+                else:
+                    roi_bgr, cursor_pos, _region = self._capture.capture_around_cursor()
+                    result = self._matcher.match(roi_bgr)
                 result = self._stabilize_result(result)
                 elapsed_ms = (time.perf_counter() - started) * 1000.0
                 payload = self._build_overlay_payload(cursor_pos, result, elapsed_ms)
@@ -120,9 +148,35 @@ class AppController(QObject):
             sleep_for = poll_seconds - elapsed
             if sleep_for > 0:
                 time.sleep(sleep_for)
+    
+    def _ocr_detect(self) -> tuple[MatchResult, tuple[int, int]]:
+        roi_bgr, cursor_pos, _region = self._capture.capture_around_cursor()
+        
+        item_name = self._ocr_detector.detect_from_image(roi_bgr, self._ocr_region)
+        
+        if item_name and item_name in self._items_by_name:
+            item = self._items_by_name[item_name]
+            return MatchResult(
+                matched=True,
+                confidence=1.0,
+                threshold=0.5,
+                item=item,
+                best_item=item,
+                message=item.info or f"Matched '{item.name}'",
+            ), cursor_pos
+        
+        return MatchResult(
+            matched=False,
+            confidence=0.0,
+            threshold=0.5,
+            item=None,
+            best_item=None,
+            message="No match found",
+        ), cursor_pos
 
     def _reset_temporal_state(self) -> None:
         self._last_candidate_id = None
+        self._last_candidate_name = None
         self._candidate_streak = 0
         self._smoothed_confidence = 0.0
 

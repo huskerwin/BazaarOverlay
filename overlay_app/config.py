@@ -11,6 +11,15 @@ class CaptureConfig:
 
 
 @dataclass(frozen=True)
+class OcrConfig:
+    enabled: bool = True
+    region_x: int = 0
+    region_y: int = 0
+    region_width: int = 200
+    region_height: int = 50
+
+
+@dataclass(frozen=True)
 class MatchConfig:
     global_threshold: float = 0.80
     scales: tuple[float, ...] = (0.90, 1.00, 1.10)
@@ -38,5 +47,6 @@ class AppConfig:
     items_path: Path
     debug: bool = False
     capture: CaptureConfig = field(default_factory=CaptureConfig)
+    ocr: OcrConfig = field(default_factory=OcrConfig)
     matching: MatchConfig = field(default_factory=MatchConfig)
     overlay: OverlayConfig = field(default_factory=OverlayConfig)

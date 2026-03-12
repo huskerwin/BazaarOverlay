@@ -36,6 +36,23 @@ SIZE_MAP = {
     "large": 400,
 }
 
+CUSTOM_SIZES = {
+    "small": (124, 252),
+    "medium": (252, 252),
+    "large": (370, 245),
+}
+
+
+def resize_image(png_bytes: bytes, target_size: tuple[int, int]) -> bytes:
+    """Resize PNG image to target dimensions using cv2."""
+    nparr = np.frombuffer(png_bytes, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED)
+    if img is None:
+        return png_bytes
+    
+    resized = cv2.resize(img, target_size, interpolation=cv2.INTER_LANCZOS4)
+    return cv2.imencode('.png', resized)[1].tobytes()
+
 SIZE_URLS = {
     "small": "https://bazaardb.gg/search?c=items&q=s:small",
     "medium": "https://bazaardb.gg/search?c=items&q=s:medium",
@@ -664,6 +681,7 @@ def download_images(
     polite_delay: float,
     limit: int,
     size: str = "medium",
+    auto_size: bool = False,
 ) -> list[DownloadRecord]:
     templates_dir.mkdir(parents=True, exist_ok=True)
 
@@ -761,6 +779,12 @@ def download_images(
         base_name = sanitize_filename(entry.item_name)
         local_filename = build_unique_filename(base_name, used_names, templates_dir)
         output_path = templates_dir / local_filename
+        
+        # Resize to custom size if using auto-size mode
+        if auto_size and item_size in CUSTOM_SIZES:
+            target_size = CUSTOM_SIZES[item_size]
+            png_bytes = resize_image(png_bytes, target_size)
+        
         output_path.write_bytes(png_bytes)
 
         hash_to_filename[digest] = local_filename
@@ -893,6 +917,7 @@ def main() -> int:
         polite_delay=max(0.0, float(args.download_delay)),
         limit=max(0, int(args.limit)),
         size=args.size,
+        auto_size=args.auto_size,
     )
 
     csv_path = args.metadata_csv or (args.templates_dir / "items.csv")
