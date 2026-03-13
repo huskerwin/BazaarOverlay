@@ -68,8 +68,13 @@ class ItemRepository:
         if not isinstance(info, str):
             info = ""
 
+        enchantments = raw_item.get("enchantments")
+        if not isinstance(enchantments, dict):
+            enchantments = None
+
         return ItemDefinition(
             item_id=item_id,
             name=name,
             info=info,
+            enchantments=enchantments,
         )

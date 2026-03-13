@@ -40,6 +40,8 @@ This document describes how the Bazaar Overlay works - an OCR-based item info ov
 
 - `overlay_app/models.py`
   - Data classes: `ItemDefinition`, `MatchResult`, `OverlayPayload`, `OcrRegion`.
+  - `ItemDefinition` now includes optional `enchantments` dict with 12 possible enchantments.
+  - `OverlayPayload` includes optional `enchantments` field to pass to UI.
 
 ### Detection
 
@@ -67,11 +69,16 @@ This document describes how the Bazaar Overlay works - an OCR-based item info ov
 
 - `overlay_app/overlay_window.py`
   - Transparent, always-on-top, click-through Qt window.
-  - Draws title, body, and confidence text.
+  - Draws title, body, confidence text, and enchantments list.
   - Clamps position to screen bounds.
   - Includes debug overlay window for visualizing OCR region (when `--debug` enabled).
 
 ### Tools
+
+- `scrape_enchantments.py`
+  - Playwright-based scraper for bazaardb.gg.
+  - Extracts item-specific enchantment descriptions for all items.
+  - Outputs to `data/item_enchantments.json`.
 
 - `tools/capture_template.py`
   - Utility for capturing template images (legacy - not used in OCR mode).
@@ -128,6 +135,14 @@ Example: `500,-50,200,40` means 500px right, 50px above, 200px wide, 40px tall.
   - `id` (optional; generated from name if omitted)
   - `name` (required - this is what OCR matches against)
   - `info` (optional overlay body text)
+  - `enchantments` (optional dict of 12 enchantment names to descriptions)
+
+### Enchantments
+
+Each item can have an optional `enchantments` dict with 12 keys:
+- golden, heavy, icy, turbo, shielded, restorative, toxic, fiery, shiny, deadly, radiant, obsidian
+
+Values are item-specific descriptions scraped from bazaardb.gg.
 
 ## Why this architecture
 

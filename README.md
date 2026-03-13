@@ -8,7 +8,7 @@ OCR-based item info overlay for games.
 - Captures screen around cursor
 - Uses OCR (EasyOCR) to read item names from game UI
 - Matches text against items database
-- Shows overlay in top-right of screen with item info
+- Shows overlay in top-right of screen with item info and enchantments
 
 This app does **not** automate gameplay or interact with the game beyond screen capture.
 
@@ -84,7 +84,21 @@ Edit `data/items.json`:
       "id": "health_potion",
       "name": "Health Potion",
       "info": "Restores 50 HP",
-      "enabled": true
+      "enabled": true,
+      "enchantments": {
+        "golden": "Double value",
+        "heavy": "Slows twice as long",
+        "icy": "Freezes enemies",
+        "turbo": "Hastes items",
+        "shielded": "Gives shield",
+        "restorative": "Heals",
+        "toxic": "Poisons",
+        "fiery": "Burns",
+        "shiny": "Double damage and slow",
+        "deadly": "+25% crit chance",
+        "radiant": "Half freeze/slow",
+        "obsidian": "Double damage"
+      }
     }
   ]
 }
@@ -95,6 +109,25 @@ Fields:
 - `name` - displayed name (used for OCR matching)
 - `info` - description shown in overlay
 - `enabled` - include/exclude from matching
+- `enchantments` - optional dict of 12 possible enchantments (shown in overlay)
+
+### Enchantments
+
+The overlay displays all 12 possible enchantments for matched items:
+- **golden** - Double value
+- **heavy** - Slows twice as long
+- **icy** - Freezes enemies
+- **turbo** - Hastes items
+- **shielded** - Gives shield
+- **restorative** - Heals
+- **toxic** - Poisons
+- **fiery** - Burns
+- **shiny** - Double damage and slow
+- **deadly** - +25% crit chance
+- **radiant** - Half freeze/slow on adjacent
+- **obsidian** - Double damage
+
+Enchantment data is scraped from [bazaardb.gg](https://bazaardb.gg) using `scrape_enchantments.py`.
 
 ## Documentation
 

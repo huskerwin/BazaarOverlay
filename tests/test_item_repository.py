@@ -120,3 +120,141 @@ def test_load_items_raises_when_no_items_key(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="Item manifest must contain an 'items' list."):
         ItemRepository().load_items(manifest_path)
+
+
+def test_load_items_with_enchantments(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "items.json"
+    _write_manifest(
+        manifest_path,
+        {
+            "items": [
+                {
+                    "id": "sword",
+                    "name": "Sword",
+                    "info": "A sharp sword",
+                    "enchantments": {
+                        "golden": "Double value",
+                        "heavy": "Slows twice as long",
+                        "icy": "Freezes enemies",
+                    },
+                }
+            ]
+        },
+    )
+
+    items = ItemRepository().load_items(manifest_path)
+
+    assert len(items) == 1
+    item = items[0]
+    assert item.enchantments is not None
+    assert item.enchantments["golden"] == "Double value"
+    assert item.enchantments["heavy"] == "Slows twice as long"
+    assert item.enchantments["icy"] == "Freezes enemies"
+
+
+def test_load_items_with_all_12_enchantments(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "items.json"
+    all_enchantments = {
+        "golden": "Double value",
+        "heavy": "Slows twice as long",
+        "icy": "Freezes enemies",
+        "turbo": "Hastes items",
+        "shielded": "Gives shield",
+        "restorative": "Heals",
+        "toxic": "Poisons",
+        "fiery": "Burns",
+        "shiny": "Double damage and slow",
+        "deadly": "+25% crit chance",
+        "radiant": "Half freeze/slow",
+        "obsidian": "Double damage",
+    }
+    _write_manifest(
+        manifest_path,
+        {
+            "items": [
+                {
+                    "name": "Weapon",
+                    "enchantments": all_enchantments,
+                }
+            ]
+        },
+    )
+
+    items = ItemRepository().load_items(manifest_path)
+
+    assert len(items) == 1
+    assert items[0].enchantments is not None
+    assert len(items[0].enchantments) == 12
+    assert items[0].enchantments == all_enchantments
+
+
+def test_load_items_without_enchantments(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "items.json"
+    _write_manifest(
+        manifest_path,
+        {
+            "items": [
+                {
+                    "name": "Simple Item",
+                    "info": "No enchantments",
+                }
+            ]
+        },
+    )
+
+    items = ItemRepository().load_items(manifest_path)
+
+    assert len(items) == 1
+    assert items[0].enchantments is None
+
+
+def test_load_items_invalid_enchantments_type(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "items.json"
+    _write_manifest(
+        manifest_path,
+        {
+            "items": [
+                {
+                    "name": "Item",
+                    "enchantments": "not a dict",
+                }
+            ]
+        },
+    )
+
+    items = ItemRepository().load_items(manifest_path)
+
+    assert len(items) == 1
+    assert items[0].enchantments is None
+
+
+def test_load_items_multiple_items_mixed_enchantments(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "items.json"
+    _write_manifest(
+        manifest_path,
+        {
+            "items": [
+                {
+                    "id": "item1",
+                    "name": "Item One",
+                    "enchantments": {"golden": "Value"},
+                },
+                {
+                    "id": "item2",
+                    "name": "Item Two",
+                },
+                {
+                    "id": "item3",
+                    "name": "Item Three",
+                    "enchantments": {"heavy": "Slow"},
+                },
+            ]
+        },
+    )
+
+    items = ItemRepository().load_items(manifest_path)
+
+    assert len(items) == 3
+    assert items[0].enchantments == {"golden": "Value"}
+    assert items[1].enchantments is None
+    assert items[2].enchantments == {"heavy": "Slow"}

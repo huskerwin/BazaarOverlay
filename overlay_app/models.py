@@ -18,6 +18,7 @@ class ItemDefinition:
     item_id: str
     name: str
     info: str = ""
+    enchantments: dict[str, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -39,3 +40,4 @@ class OverlayPayload:
     matched: bool
     debug_image: np.ndarray | None = None
     ocr_region: tuple[int, int, int, int] | None = None
+    enchantments: dict[str, str] | None = None

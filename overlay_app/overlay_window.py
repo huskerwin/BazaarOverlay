@@ -31,6 +31,7 @@ class OverlayWindow(QWidget):
         self._matched = False
         self._debug_image: np.ndarray | None = None
         self._ocr_region: tuple[int, int, int, int] | None = None
+        self._enchantments: dict[str, str] | None = None
 
         self._padding = 12
         self._line_gap = 6
@@ -38,6 +39,8 @@ class OverlayWindow(QWidget):
         self._title_font = QFont("Segoe UI", 10, QFont.Bold)
         self._body_font = QFont("Segoe UI", 9)
         self._confidence_font = QFont("Consolas", 8)
+        self._enchantment_title_font = QFont("Segoe UI", 8, QFont.Bold)
+        self._enchantment_text_font = QFont("Segoe UI", 7)
 
         self.setWindowFlags(
             Qt.FramelessWindowHint
@@ -59,6 +62,7 @@ class OverlayWindow(QWidget):
         self._matched = payload.matched
         self._debug_image = payload.debug_image
         self._ocr_region = payload.ocr_region
+        self._enchantments = payload.enchantments
 
         self._recompute_size()
         self._move_near_cursor(payload.cursor_pos)
@@ -133,6 +137,36 @@ class OverlayWindow(QWidget):
             int(Qt.TextWordWrap | Qt.AlignLeft | Qt.AlignTop),
             self._confidence,
         )
+        y = conf_rect.bottom() + 1 + self._line_gap
+
+        if self._enchantments:
+            enchant_color = QColor(180, 160, 220, 230)
+            painter.setFont(self._enchantment_title_font)
+            painter.setPen(enchant_color)
+            enc_title_rect = painter.boundingRect(
+                self._padding,
+                y,
+                text_width,
+                1000,
+                int(Qt.TextWordWrap | Qt.AlignLeft | Qt.AlignTop),
+                "Enchantments:",
+            )
+            painter.drawText(enc_title_rect, int(Qt.TextWordWrap | Qt.AlignLeft | Qt.AlignTop), "Enchantments:")
+            y = enc_title_rect.bottom() + 2 + self._line_gap
+
+            painter.setFont(self._enchantment_text_font)
+            for enc_name, enc_desc in self._enchantments.items():
+                enc_text = f"• {enc_name.title()}: {enc_desc}"
+                enc_rect = painter.boundingRect(
+                    self._padding,
+                    y,
+                    text_width,
+                    1000,
+                    int(Qt.TextWordWrap | Qt.AlignLeft | Qt.AlignTop),
+                    enc_text,
+                )
+                painter.drawText(enc_rect, int(Qt.TextWordWrap | Qt.AlignLeft | Qt.AlignTop), enc_text)
+                y = enc_rect.bottom() + 1 + self._line_gap
 
     def _recompute_size(self) -> None:
         text_width = self._config.width - (self._padding * 2)
@@ -148,6 +182,19 @@ class OverlayWindow(QWidget):
             0, 0, text_width, 1000, flags, self._confidence
         ).height()
 
+        enchantments_h = 0
+        if self._enchantments:
+            enchant_title_h = QFontMetrics(self._enchantment_title_font).boundingRect(
+                0, 0, text_width, 1000, flags, "Enchantments:"
+            ).height()
+            enchantments_h += enchant_title_h + self._line_gap
+            for enc_name, enc_desc in self._enchantments.items():
+                enc_text = f"• {enc_name.title()}: {enc_desc}"
+                enc_h = QFontMetrics(self._enchantment_text_font).boundingRect(
+                    0, 0, text_width, 1000, flags, enc_text
+                ).height()
+                enchantments_h += enc_h + self._line_gap
+
         content_h = (
             self._padding
             + title_h
@@ -155,6 +202,8 @@ class OverlayWindow(QWidget):
             + body_h
             + self._line_gap
             + confidence_h
+            + self._line_gap
+            + enchantments_h
             + self._padding
         )
         target_h = max(self._config.min_height, content_h)

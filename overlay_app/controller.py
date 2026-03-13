@@ -233,6 +233,7 @@ class AppController(QObject):
                         matched=False,
                         debug_image=None,
                         ocr_region=None,
+                        enchantments=None,
                     )
                 )
                 time.sleep(0.20)
@@ -372,6 +373,11 @@ class AppController(QObject):
         # Show timing in debug mode
         confidence_text = f"{elapsed_ms:.1f} ms" if self._config.debug else ""
 
+        # Get enchantments for matched item
+        enchantments = None
+        if result.matched and result.item is not None:
+            enchantments = result.item.enchantments
+
         # Include OCR region in debug mode
         ocr_region = None
         if self._config.debug:
@@ -390,4 +396,5 @@ class AppController(QObject):
             matched=matched,
             debug_image=debug_image,
             ocr_region=ocr_region,
+            enchantments=enchantments,
         )

@@ -121,7 +121,24 @@ while hotkey_is_pressed:
 - `stop()` - Stops listener
 - `_on_press()` / `_on_release()` - Handles key events
 
-### 6. overlay_window.py - OverlayWindow
+### 6. scrape_enchantments.py - Enchantment Scraper
+
+**Purpose**: Scrapes item-specific enchantments from bazaardb.gg
+
+**How it works**:
+- Uses Playwright to handle JavaScript-rendered content
+- Iterates through all item pages on bazaardb.gg
+- Extracts enchantment descriptions from element IDs like `#engine-heavy`, `#engine-icy`
+- Outputs to `data/item_enchantments.json`
+- Enchantments are then merged into `data/items.json`
+
+**Key enchantments** (12 total):
+- golden, heavy, icy, turbo, shielded, restorative
+- toxic, fiery, shiny, deadly, radiant, obsidian
+
+**Note**: Some items cannot be enchanted on bazaardb.gg and will have empty enchantments.
+
+### 7. overlay_window.py - OverlayWindow
 
 **Purpose**: Displays the info overlay
 
@@ -129,25 +146,31 @@ while hotkey_is_pressed:
 - Transparent, always-on-top Qt window
 - Click-through (doesn't intercept mouse clicks)
 - Positioned in top-right of screen
+- Displays title, body, confidence, and enchantments list
 
 **Key methods**:
 - `show_payload()` - Updates and shows overlay
 - `hide_overlay()` - Hides overlay
-- `paintEvent()` - Draws the overlay UI
+- `paintEvent()` - Draws the overlay UI (title, body, confidence, enchantments)
 - `_move_near_cursor()` - Positions window
+
+**Enchantments display**:
+- Purple header "Enchantments:"
+- Bullet points for each of the 12 enchantments
+- Dynamic height calculation for proper sizing
 
 **DebugOverlayWindow**: 
 - Shows captured screen region for debugging
 - Displays red rectangle where OCR is running
 
-### 7. item_repository.py - ItemRepository
+### 8. item_repository.py - ItemRepository
 
 **Purpose**: Loads item definitions from JSON
 
 **How it works**:
 - Reads `data/items.json`
 - Validates and parses item entries
-- Returns list of ItemDefinition objects
+- Returns list of ItemDefinition objects with optional enchantments
 
 **Item format**:
 ```json
@@ -157,13 +180,29 @@ while hotkey_is_pressed:
       "id": "unique_id",
       "name": "Item Name",
       "info": "Description shown in overlay",
-      "enabled": true
+      "enabled": true,
+      "enchantments": {
+        "golden": "Double value",
+        "heavy": "Slows twice as long",
+        "icy": "Freezes enemies",
+        "turbo": "Hastes items",
+        "shielded": "Gives shield",
+        "restorative": "Heals",
+        "toxic": "Poisons",
+        "fiery": "Burns",
+        "shiny": "Double damage and slow",
+        "deadly": "+25% crit chance",
+        "radiant": "Half freeze/slow",
+        "obsidian": "Double damage"
+      }
     }
   ]
 }
 ```
 
-### 8. config.py - Configuration
+**Enchantments**: Each item can have an optional `enchantments` dict with 12 keys describing item-specific effects. Data is scraped from bazaardb.gg using `scrape_enchantments.py`.
+
+### 9. config.py - Configuration
 
 **Purpose**: Defines all configuration dataclasses
 
@@ -173,15 +212,20 @@ while hotkey_is_pressed:
 - `OverlayConfig` - Overlay display settings (width, height, position)
 - `AppConfig` - Combined app configuration
 
-### 9. models.py - Data Classes
+### 10. models.py - Data Classes
 
 **Purpose**: Defines data structures
 
 **Key classes**:
-- `ItemDefinition` - Item from database (id, name, info)
+- `ItemDefinition` - Item from database (id, name, info, enchantments)
 - `MatchResult` - OCR detection result (matched, confidence, item, message)
-- `OverlayPayload` - Data passed to overlay (title, body, cursor_pos, etc.)
+- `OverlayPayload` - Data passed to overlay (title, body, cursor_pos, enchantments, etc.)
 - `OcrRegion` - OCR region definition (left, top, width, height)
+
+**Enchantment data flow**:
+1. `item_repository.py` loads enchantments from items.json into `ItemDefinition.enchantments`
+2. `controller.py` passes `item.enchantments` to `OverlayPayload.enchantments`
+3. `overlay_window.py` renders enchantments list in the UI
 
 ## Configuration Options
 
