@@ -214,7 +214,7 @@ class DebugOverlayWindow(QWidget):
 
         self.hide_debug_signal.connect(self.hide_debug, Qt.QueuedConnection)
         
-        self.resize(300, 250)
+        self.resize(500, 400)
         self.hide()
 
     def show_debug(self, debug_image: np.ndarray | None, ocr_region: tuple[int, int, int, int] | None, cursor_pos: tuple[int, int]) -> None:
@@ -257,14 +257,18 @@ class DebugOverlayWindow(QWidget):
                     scale_y = scaled.height() / h
                     rect_x = int(rx * scale_x) + 5
                     rect_y = int(ry * scale_y) + 5
-                    rect_w = int(rw * scale_x)
-                    rect_h = int(rh * scale_y)
-                    painter.setPen(QPen(QColor(255, 0, 0), 3))
+                    rect_w = max(4, int(rw * scale_x))
+                    rect_h = max(4, int(rh * scale_y))
+                    
+                    # Draw filled rectangle with border
+                    painter.setPen(QPen(QColor(255, 0, 0), 2))
+                    painter.setBrush(QColor(255, 0, 0, 50))
                     painter.drawRect(rect_x, rect_y, rect_w, rect_h)
                     
+                    # Draw label
                     painter.setPen(QColor(255, 0, 0))
                     painter.setFont(QFont("Consolas", 9))
-                    painter.drawText(rect_x, rect_y - 5, f"OCR: +{rx},+{ry}")
+                    painter.drawText(rect_x, rect_y - 5, f"OCR: +{rx},+{ry} ({rw}x{rh})")
 
     def _move_near_cursor(self, cursor_pos: tuple[int, int]) -> None:
         target_x = cursor_pos[0] + 20
