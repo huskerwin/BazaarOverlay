@@ -145,7 +145,7 @@ class AppController(QObject):
             if sleep_for > 0:
                 time.sleep(sleep_for)
     
-    def _detect(self) -> tuple[MatchResult, tuple[int, int]]:
+    def _detect(self) -> tuple[MatchResult, tuple[int, int], np.ndarray | None]:
         roi_bgr, cursor_pos, _region = self._capture.capture_around_cursor()
         
         debug_image = None
