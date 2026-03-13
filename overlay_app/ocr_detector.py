@@ -154,9 +154,10 @@ class OcrItemDetector:
         
         Tries multiple matching strategies:
         1. Exact match (case-insensitive)
-        2. Contains match (skip if detected text is blacklisted)
-        3. Apostrophe-insensitive match (skip if blacklisted)
-        4. Fuzzy normalized match (skip if blacklisted)
+        2. Word match (item name as standalone word in text)
+        3. Contains match (skip if detected text is blacklisted)
+        4. Apostrophe-insensitive match (skip if blacklisted)
+        5. Fuzzy normalized match (skip if blacklisted)
         """
         text_lower = text.lower()
         text_words = set(re.findall(r'\b[a-z]+\b', text_lower))
@@ -166,13 +167,18 @@ class OcrItemDetector:
         if text_lower in self._item_names:
             return self._item_names[text_lower]
         
-        # 2. Contains match (skip if blacklisted)
+        # 2. Word match - check if any item name appears as a standalone word
+        for name_lower, original_name in self._item_names.items():
+            if name_lower in text_words:
+                return original_name
+        
+        # 3. Contains match (skip if blacklisted)
         if not has_blacklist_word:
             for name_lower, original_name in self._item_names.items():
                 if name_lower in text_lower or text_lower in name_lower:
                     return original_name
         
-        # 3. Apostrophe-insensitive match (skip if blacklisted)
+        # 4. Apostrophe-insensitive match (skip if blacklisted)
         if not has_blacklist_word:
             text_no_apostrophe = text_lower.replace("'", "")
             for name_lower, original_name in self._item_names.items():
@@ -180,7 +186,7 @@ class OcrItemDetector:
                 if name_no_apostrophe in text_no_apostrophe or text_no_apostrophe in name_no_apostrophe:
                     return original_name
         
-        # 4. Fuzzy normalized match (skip if blacklisted)
+        # 5. Fuzzy normalized match (skip if blacklisted)
         if not has_blacklist_word:
             text_normalized = self._normalize_for_match(text_lower)
             for name_lower, original_name in self._item_names.items():
