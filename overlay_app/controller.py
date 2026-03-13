@@ -109,8 +109,7 @@ class AppController(QObject):
 
             started = time.perf_counter()
             try:
-                debug_image = None
-                result, cursor_pos = self._detect()
+                result, cursor_pos, debug_image = self._detect()
                 
                 if self._debug_overlay is not None:
                     ocr_region_for_debug = (
