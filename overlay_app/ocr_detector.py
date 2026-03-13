@@ -33,6 +33,9 @@ class OcrItemDetector:
     Supports fuzzy matching for OCR errors and common variations.
     """
     
+    # Words that commonly cause false matches - require complete word match
+    BLACKLIST = {"damage"}
+    
     def __init__(self, item_names: set[str]):
         """
         Initialize OCR detector with known item names.
@@ -151,7 +154,7 @@ class OcrItemDetector:
         
         Tries multiple matching strategies:
         1. Exact match (case-insensitive)
-        2. Contains match
+        2. Contains match (skip if detected text is blacklisted)
         3. Apostrophe-insensitive match
         4. Fuzzy normalized match
         """
@@ -160,6 +163,11 @@ class OcrItemDetector:
         # 1. Exact match
         if text_lower in self._item_names:
             return self._item_names[text_lower]
+        
+        # Skip blacklisted words for contains/fuzzy matching
+        if text_lower in self.BLACKLIST:
+            LOGGER.info("OCR: Skipping blacklisted word '%s'", text_lower)
+            return None
         
         # 2. Contains match
         for name_lower, original_name in self._item_names.items():
