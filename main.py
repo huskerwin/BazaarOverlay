@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
-from overlay_app.config import AppConfig, CaptureConfig, MatchConfig, OcrConfig
+from overlay_app.config import AppConfig, CaptureConfig, OcrConfig
 from overlay_app.controller import AppController
 from overlay_app.item_repository import ItemRepository
 from overlay_app.overlay_window import DebugOverlayWindow, OverlayWindow
@@ -17,7 +17,7 @@ from overlay_app.screen_capture import enable_dpi_awareness
 def parse_args() -> argparse.Namespace:
     default_items = Path(__file__).resolve().parent / "data" / "items.json"
     parser = argparse.ArgumentParser(
-        description="Display template-matched item info overlay while holding Shift+E."
+        description="Display item info overlay using OCR while holding Shift+E."
     )
     parser.add_argument(
         "--items",
@@ -28,12 +28,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--debug",
         action="store_true",
-        help="Enable verbose logs and timing in overlay.",
+        help="Enable debug mode showing OCR region.",
     )
     parser.add_argument(
         "--roi-radius",
         type=int,
-        default=72,
+        default=400,
         help="Capture radius around cursor in pixels.",
     )
     parser.add_argument(
@@ -43,20 +43,9 @@ def parse_args() -> argparse.Namespace:
         help="Detection loop interval while hotkey is held.",
     )
     parser.add_argument(
-        "--threshold",
-        type=float,
-        default=0.80,
-        help="Global fallback confidence threshold (0-1).",
-    )
-    parser.add_argument(
-        "--ocr",
-        action="store_true",
-        help="Use OCR-based detection instead of template matching.",
-    )
-    parser.add_argument(
         "--ocr-region",
         type=str,
-        default="0,0,200,50",
+        default="500,-50,200,40",
         help="OCR region as 'x,y,width,height' relative to cursor.",
     )
     return parser.parse_args()
@@ -79,23 +68,21 @@ def build_config(args: argparse.Namespace) -> AppConfig:
     if len(ocr_region) == 4:
         ocr_x, ocr_y, ocr_w, ocr_h = map(int, ocr_region)
     else:
-        ocr_x, ocr_y, ocr_w, ocr_h = 100, 0, 200, 40
+        ocr_x, ocr_y, ocr_w, ocr_h = 500, -50, 200, 40
     
     ocr = OcrConfig(
-        enabled=bool(args.ocr),
+        enabled=True,
         region_x=ocr_x,
         region_y=ocr_y,
         region_width=ocr_w,
         region_height=ocr_h,
     )
     
-    matching = MatchConfig(global_threshold=max(0.05, min(0.99, float(args.threshold))))
     return AppConfig(
         items_path=args.items.resolve(),
         debug=bool(args.debug),
         capture=capture,
         ocr=ocr,
-        matching=matching,
     )
 
 
@@ -109,7 +96,7 @@ def main() -> int:
 
     try:
         items = repository.load_items(config.items_path)
-    except Exception as exc:  # pragma: no cover - startup path
+    except Exception as exc:
         logging.getLogger("overlay.main").error("Failed to load item database: %s", exc)
         return 1
 
@@ -122,9 +109,8 @@ def main() -> int:
     controller.start()
     app.aboutToQuit.connect(controller.shutdown)
 
-    mode = "OCR" if config.ocr.enabled else "Template Matching"
     logging.getLogger("overlay.main").info(
-        "Running in %s mode. Hold Shift+E over an item to show overlay.", mode
+        "Running. Hold Shift+E over an item to show overlay."
     )
     return app.exec()
 

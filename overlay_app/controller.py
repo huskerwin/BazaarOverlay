@@ -15,7 +15,6 @@ from .models import ItemDefinition, MatchResult, OverlayPayload
 from .ocr_detector import OcrItemDetector
 from .overlay_window import OverlayWindow
 from .screen_capture import ScreenCapture
-from .template_matcher import TemplateMatcher
 
 LOGGER = logging.getLogger("overlay.controller")
 
@@ -35,46 +34,25 @@ class AppController(QObject):
         super().__init__()
         self._config = config
 
-        self._stable_frames_required = max(1, int(config.matching.stable_frames_required))
-        self._temporal_alpha = float(max(0.05, min(0.95, config.matching.temporal_smoothing_alpha)))
-        self._last_candidate_id: str | None = None
-        self._last_candidate_name: str | None = None
-        self._candidate_streak = 0
-        self._smoothed_confidence = 0.0
+        self._last_item_name: str | None = None
+        self._item_streak = 0
 
         self._overlay = overlay
         self._debug_overlay = debug_overlay
-        self._matcher = TemplateMatcher(items=items, config=config.matching)
         
-        requested_radius = config.capture.roi_radius
-        required_radius = self._matcher.minimum_roi_radius
-        effective_radius = max(requested_radius, required_radius)
+        self._capture = ScreenCapture(config.capture.roi_radius)
         
-        self._use_ocr = config.ocr.enabled
-        self._show_ocr_region = config.debug and config.ocr.enabled
-        LOGGER.info("Controller init - debug: %s, ocr: %s, show_region: %s, roi_radius: %s",
-                    config.debug, config.ocr.enabled, self._show_ocr_region, effective_radius)
-        
-        if self._use_ocr:
-            item_names = {item.name for item in items}
-            LOGGER.info("Initializing OCR detector...")
-            self._ocr_detector = OcrItemDetector(item_names)
-            self._ocr_region: OcrRegion = {
-                "left": config.ocr.region_x,
-                "top": config.ocr.region_y,
-                "width": config.ocr.region_width,
-                "height": config.ocr.region_height,
-            }
-            LOGGER.info("OCR detection enabled with region: %s", self._ocr_region)
+        item_names = {item.name for item in items}
+        LOGGER.info("Initializing OCR detector...")
+        self._ocr_detector = OcrItemDetector(item_names)
+        self._ocr_region: OcrRegion = {
+            "left": config.ocr.region_x,
+            "top": config.ocr.region_y,
+            "width": config.ocr.region_width,
+            "height": config.ocr.region_height,
+        }
+        LOGGER.info("OCR detection enabled with region: %s", self._ocr_region)
 
-        if effective_radius != requested_radius:
-            LOGGER.warning(
-                "ROI radius %d is too small for current templates; using %d.",
-                requested_radius,
-                effective_radius,
-            )
-
-        self._capture = ScreenCapture(effective_radius)
         self._hotkey = HoldHotkeyListener(on_state_change=self._on_hotkey_state, trigger_key="e")
         
         self._items_by_name: dict[str, ItemDefinition] = {item.name: item for item in items}
@@ -132,37 +110,32 @@ class AppController(QObject):
             started = time.perf_counter()
             try:
                 debug_image = None
-                ocr_region_for_debug = None
-                if self._use_ocr:
-                    result, cursor_pos, debug_image = self._ocr_detect()
-                    if self._debug_overlay is not None:
-                        ocr_region_for_debug = (self._ocr_region["left"], self._ocr_region["top"], 
-                                              self._ocr_region["width"], self._ocr_region["height"])
-                        self._debug_overlay.show_debug(debug_image, ocr_region_for_debug, cursor_pos)
-                else:
-                    roi_bgr, cursor_pos, _region = self._capture.capture_around_cursor()
-                    result = self._matcher.match(roi_bgr)
-                    if self._debug_overlay is not None:
-                        self._debug_overlay.hide_debug()
+                result, cursor_pos = self._detect()
+                
+                if self._debug_overlay is not None:
+                    ocr_region_for_debug = (
+                        self._ocr_region["left"], 
+                        self._ocr_region["top"], 
+                        self._ocr_region["width"], 
+                        self._ocr_region["height"]
+                    )
+                    self._debug_overlay.show_debug(debug_image, ocr_region_for_debug, cursor_pos)
+                
                 result = self._stabilize_result(result)
                 elapsed_ms = (time.perf_counter() - started) * 1000.0
                 payload = self._build_overlay_payload(cursor_pos, result, elapsed_ms, debug_image)
                 self.overlay_show.emit(payload)
             except Exception:
                 LOGGER.exception("Detection loop error.")
-                ocr_region_err = None
-                if self._show_ocr_region and self._use_ocr:
-                    ocr_region_err = (self._ocr_region["left"], self._ocr_region["top"], 
-                                     self._ocr_region["width"], self._ocr_region["height"])
                 self.overlay_show.emit(
                     OverlayPayload(
                         cursor_pos=(0, 0),
-                        title="Capture/Match Error",
-                        body="Check logs and template files, then retry.",
+                        title="Error",
+                        body="Check logs and try again.",
                         confidence_text="Runtime error",
                         matched=False,
                         debug_image=None,
-                        ocr_region=ocr_region_err,
+                        ocr_region=None,
                     )
                 )
                 time.sleep(0.20)
@@ -173,11 +146,11 @@ class AppController(QObject):
             if sleep_for > 0:
                 time.sleep(sleep_for)
     
-    def _ocr_detect(self) -> tuple[MatchResult, tuple[int, int]]:
+    def _detect(self) -> tuple[MatchResult, tuple[int, int]]:
         roi_bgr, cursor_pos, _region = self._capture.capture_around_cursor()
         
         debug_image = None
-        if self._show_ocr_region and roi_bgr is not None and roi_bgr.size > 0:
+        if self._config.debug and roi_bgr is not None and roi_bgr.size > 0:
             debug_image = roi_bgr.copy()
             
             x = self._ocr_region["left"]
@@ -216,55 +189,34 @@ class AppController(QObject):
         ), cursor_pos, debug_image
 
     def _reset_temporal_state(self) -> None:
-        self._last_candidate_id = None
-        self._last_candidate_name = None
-        self._candidate_streak = 0
-        self._smoothed_confidence = 0.0
+        self._last_item_name = None
+        self._item_streak = 0
 
     def _stabilize_result(self, result: MatchResult) -> MatchResult:
-        if result.best_item is None:
+        if result.item is None:
             self._reset_temporal_state()
             return result
 
-        candidate_id = result.best_item.item_id
-        if candidate_id == self._last_candidate_id:
-            self._candidate_streak += 1
-            self._smoothed_confidence = (
-                (self._temporal_alpha * result.confidence)
-                + ((1.0 - self._temporal_alpha) * self._smoothed_confidence)
-            )
+        current_name = result.item.name
+        
+        if current_name == self._last_item_name:
+            self._item_streak += 1
         else:
-            self._last_candidate_id = candidate_id
-            self._candidate_streak = 1
-            self._smoothed_confidence = result.confidence
+            self._last_item_name = current_name
+            self._item_streak = 1
 
-        stable = self._candidate_streak >= self._stable_frames_required
-        smoothed_confidence = self._smoothed_confidence
-        matched = stable and (smoothed_confidence >= result.threshold)
+        stable = self._item_streak >= 2
 
-        if matched:
-            item = result.best_item
-            message = item.info or f"Matched '{item.name}'."
-            return MatchResult(
-                matched=True,
-                confidence=smoothed_confidence,
-                threshold=result.threshold,
-                item=item,
-                best_item=item,
-                message=message,
-            )
-
-        message = result.message
-        if not stable:
-            message = "Stabilizing match..."
+        if stable:
+            return result
 
         return MatchResult(
             matched=False,
-            confidence=smoothed_confidence,
+            confidence=result.confidence,
             threshold=result.threshold,
-            item=None,
+            item=result.item,
             best_item=result.best_item,
-            message=message,
+            message="Stabilizing...",
         )
 
     def _build_overlay_payload(
@@ -279,24 +231,20 @@ class AppController(QObject):
             body = result.message
             matched = True
         else:
-            if result.message == "Stabilizing match...":
-                title = "Stabilizing match..."
-            else:
-                title = "No confident match found."
-            if result.best_item is None:
-                body = "Move the cursor directly over an item icon and hold Shift+E."
-            else:
-                body = f"Best candidate: {result.best_item.name}"
+            title = "No match"
+            body = "Move cursor over an item name in the game."
             matched = False
 
-        confidence_text = f"Score {result.confidence:.2f} | Threshold {result.threshold:.2f}"
-        if self._config.debug:
-            confidence_text = f"{confidence_text} | {elapsed_ms:.1f} ms"
+        confidence_text = f"{elapsed_ms:.1f} ms" if self._config.debug else ""
 
         ocr_region = None
-        if self._show_ocr_region and self._use_ocr:
-            ocr_region = (self._ocr_region["left"], self._ocr_region["top"], 
-                         self._ocr_region["width"], self._ocr_region["height"])
+        if self._config.debug:
+            ocr_region = (
+                self._ocr_region["left"], 
+                self._ocr_region["top"], 
+                self._ocr_region["width"], 
+                self._ocr_region["height"]
+            )
         
         return OverlayPayload(
             cursor_pos=cursor_pos,
