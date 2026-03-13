@@ -60,7 +60,7 @@ def parse_args(args: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--skip-frames",
         type=int,
-        default=1,
+        default=7,
         help="Skip OCR every N frames (1 = no skip, 2 = half speed, etc).",
     )
     parser.add_argument(

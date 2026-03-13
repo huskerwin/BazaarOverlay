@@ -24,7 +24,7 @@ def test_default_config():
     assert config.capture.roi_width == 800
     assert config.capture.roi_height == 600
     assert config.capture.poll_interval_ms == 75
-    assert config.capture.skip_frames == 1
+    assert config.capture.skip_frames == 7
     assert config.ocr.region_x == 0
     assert config.ocr.region_y == 0
     assert config.ocr.region_width == 0
