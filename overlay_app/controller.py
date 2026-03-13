@@ -209,6 +209,10 @@ class AppController(QObject):
                 
                 elapsed_ms = (time.perf_counter() - started) * 1000.0
                 
+                # Check if hotkey is still active before showing overlay
+                if not self._active:
+                    continue
+                
                 # Build and emit overlay payload
                 payload = self._build_overlay_payload(
                     cursor_pos, 
