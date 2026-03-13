@@ -22,7 +22,12 @@ class OcrItemDetector:
     def __init__(self, item_names: set[str]):
         self._item_names = {name.lower(): name for name in item_names}
         self._last_result: str | None = None
+        self._last_detected_text: str | None = None
         self._reader = easyocr.Reader(['en'], gpu=False, verbose=False)
+    
+    @property
+    def last_detected_text(self) -> str | None:
+        return self._last_detected_text
     
     def detect_from_image(self, frame: np.ndarray, region: OcrRegion | None = None) -> str | None:
         if frame is None or frame.size == 0:
@@ -52,6 +57,8 @@ class OcrItemDetector:
             
             cleaned = self._clean_text(combined_text)
             LOGGER.info("OCR cleaned text: '%s'", cleaned)
+            
+            self._last_detected_text = cleaned
             
             if not cleaned:
                 return None

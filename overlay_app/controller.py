@@ -225,13 +225,18 @@ class AppController(QObject):
         elapsed_ms: float,
         debug_image: np.ndarray | None = None,
     ) -> OverlayPayload:
+        detected_text = self._ocr_detector.last_detected_text if self._ocr_detector else None
+        
         if result.matched and result.item is not None:
             title = result.item.name
             body = result.message
             matched = True
         else:
             title = "No match"
-            body = "Move cursor over an item name in the game."
+            if detected_text:
+                body = f"Detected: '{detected_text}'"
+            else:
+                body = "Move cursor over an item name in the game."
             matched = False
 
         confidence_text = f"{elapsed_ms:.1f} ms" if self._config.debug else ""
