@@ -6,14 +6,14 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class CaptureConfig:
-    roi_radius: int = 150
+    roi_radius: int = 400
     poll_interval_ms: int = 75
 
 
 @dataclass(frozen=True)
 class OcrConfig:
     enabled: bool = True
-    region_x: int = 200
+    region_x: int = 500
     region_y: int = -50
     region_width: int = 200
     region_height: int = 40
