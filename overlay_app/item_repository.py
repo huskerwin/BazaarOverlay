@@ -71,7 +71,5 @@ class ItemRepository:
         return ItemDefinition(
             item_id=item_id,
             name=name,
-            template_paths=(),
             info=info,
-            threshold=None,
         )

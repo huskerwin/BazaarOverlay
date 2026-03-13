@@ -1,18 +1,23 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
+from typing import TypedDict
 
 import numpy as np
+
+
+class OcrRegion(TypedDict):
+    left: int
+    top: int
+    width: int
+    height: int
 
 
 @dataclass(frozen=True)
 class ItemDefinition:
     item_id: str
     name: str
-    template_paths: tuple[Path, ...]
     info: str = ""
-    threshold: float | None = None
 
 
 @dataclass(frozen=True)

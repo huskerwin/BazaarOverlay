@@ -39,7 +39,6 @@ def test_load_items_generates_id_from_name(tmp_path: Path) -> None:
     assert item.item_id == "iron_sword"
     assert item.name == "Iron Sword"
     assert item.info == "A melee weapon"
-    assert item.template_paths == ()
 
 
 def test_load_items_uses_explicit_id(tmp_path: Path) -> None:
