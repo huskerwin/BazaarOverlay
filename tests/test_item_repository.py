@@ -18,27 +18,15 @@ def _write_manifest(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
-def test_load_items_generates_id_and_resolves_paths(tmp_path: Path) -> None:
-    data_dir = tmp_path / "data"
-    assets_dir = tmp_path / "assets"
-    assets_dir.mkdir(parents=True)
-
-    sword = assets_dir / "sword.png"
-    sword_alt = assets_dir / "sword_alt.png"
-    sword.write_bytes(b"placeholder")
-    sword_alt.write_bytes(b"placeholder")
-
-    manifest_path = data_dir / "items.json"
+def test_load_items_generates_id_from_name(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "items.json"
     _write_manifest(
         manifest_path,
         {
             "items": [
                 {
                     "name": "Iron Sword",
-                    "template": "assets/sword.png",
-                    "templates": ["assets/sword.png", "assets/sword_alt.png"],
-                    "threshold": 0.82,
-                    "info": "Melee weapon",
+                    "info": "A melee weapon",
                 }
             ]
         },
@@ -50,31 +38,20 @@ def test_load_items_generates_id_and_resolves_paths(tmp_path: Path) -> None:
     item = items[0]
     assert item.item_id == "iron_sword"
     assert item.name == "Iron Sword"
-    assert item.threshold == pytest.approx(0.82)
-    assert item.info == "Melee weapon"
-    assert item.template_paths == (sword.resolve(), sword_alt.resolve())
+    assert item.info == "A melee weapon"
+    assert item.template_paths == ()
 
 
-def test_load_items_clamps_threshold_and_skips_missing_template(tmp_path: Path) -> None:
-    template_path = tmp_path / "icon.png"
-    template_path.write_bytes(b"placeholder")
-
+def test_load_items_uses_explicit_id(tmp_path: Path) -> None:
     manifest_path = tmp_path / "items.json"
     _write_manifest(
         manifest_path,
         {
             "items": [
                 {
-                    "id": "high_threshold",
-                    "name": "High Threshold",
-                    "template": "icon.png",
-                    "threshold": 2.0,
-                },
-                {
-                    "id": "missing_template",
-                    "name": "Missing Template",
-                    "template": "missing.png",
-                },
+                    "id": "custom_id",
+                    "name": "Custom Item",
+                }
             ]
         },
     )
@@ -82,16 +59,10 @@ def test_load_items_clamps_threshold_and_skips_missing_template(tmp_path: Path) 
     items = ItemRepository().load_items(manifest_path)
 
     assert len(items) == 1
-    assert items[0].item_id == "high_threshold"
-    assert items[0].threshold == pytest.approx(0.99)
+    assert items[0].item_id == "custom_id"
 
 
 def test_load_items_skips_disabled_entries(tmp_path: Path) -> None:
-    active_template = tmp_path / "active.png"
-    disabled_template = tmp_path / "disabled.png"
-    active_template.write_bytes(b"placeholder")
-    disabled_template.write_bytes(b"placeholder")
-
     manifest_path = tmp_path / "items.json"
     _write_manifest(
         manifest_path,
@@ -100,13 +71,11 @@ def test_load_items_skips_disabled_entries(tmp_path: Path) -> None:
                 {
                     "id": "disabled_item",
                     "name": "Disabled Item",
-                    "template": "disabled.png",
                     "enabled": False,
                 },
                 {
                     "id": "active_item",
                     "name": "Active Item",
-                    "template": "active.png",
                     "enabled": True,
                 },
             ]
@@ -119,20 +88,36 @@ def test_load_items_skips_disabled_entries(tmp_path: Path) -> None:
     assert items[0].item_id == "active_item"
 
 
-def test_load_items_raises_when_manifest_has_no_valid_items(tmp_path: Path) -> None:
+def test_load_items_skips_invalid_entries(tmp_path: Path) -> None:
     manifest_path = tmp_path / "items.json"
     _write_manifest(
         manifest_path,
         {
             "items": [
-                {
-                    "id": "invalid",
-                    "name": "Invalid Item",
-                    "template": "does_not_exist.png",
-                }
+                {"name": ""},
+                {"name": "Valid Item"},
+                {"no": "name field"},
             ]
         },
     )
 
+    items = ItemRepository().load_items(manifest_path)
+
+    assert len(items) == 1
+    assert items[0].name == "Valid Item"
+
+
+def test_load_items_raises_when_manifest_empty(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "items.json"
+    _write_manifest(manifest_path, {"items": []})
+
     with pytest.raises(ValueError, match="No valid items found in manifest."):
+        ItemRepository().load_items(manifest_path)
+
+
+def test_load_items_raises_when_no_items_key(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "items.json"
+    _write_manifest(manifest_path, {})
+
+    with pytest.raises(ValueError, match="Item manifest must contain an 'items' list."):
         ItemRepository().load_items(manifest_path)
