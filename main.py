@@ -24,8 +24,12 @@ from overlay_app.overlay_window import DebugOverlayWindow, OverlayWindow
 from overlay_app.screen_capture import enable_dpi_awareness
 
 
-def parse_args() -> argparse.Namespace:
-    """Parse command-line arguments."""
+def parse_args(args: list[str] | None = None) -> argparse.Namespace:
+    """Parse command-line arguments.
+    
+    Args:
+        args: List of arguments to parse. If None, uses sys.argv.
+    """
     default_items = Path(__file__).resolve().parent / "data" / "items.json"
     parser = argparse.ArgumentParser(
         description="Display item info overlay using OCR while holding Shift+E."
@@ -65,7 +69,7 @@ def parse_args() -> argparse.Namespace:
         default="0,0,0,0",
         help="OCR region as 'x,y,width,height' (0,0,0,0 = full ROI).",
     )
-    return parser.parse_args()
+    return parser.parse_args(args)
 
 
 def configure_logging(debug: bool) -> None:
