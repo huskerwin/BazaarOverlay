@@ -21,8 +21,8 @@ def test_default_config():
     config = build_config(args)
     
     assert config.debug is False
-    assert config.capture.roi_width == 800
-    assert config.capture.roi_height == 600
+    assert config.capture.roi_width == 1000
+    assert config.capture.roi_height == 800
     assert config.capture.poll_interval_ms == 75
     assert config.capture.skip_frames == 7
     assert config.ocr.region_x == 0
