@@ -30,6 +30,7 @@ class OverlayWindow(QWidget):
         self._confidence = ""
         self._matched = False
         self._debug_image: np.ndarray | None = None
+        self._ocr_region: tuple[int, int, int, int] | None = None
 
         self._padding = 12
         self._line_gap = 6
@@ -57,6 +58,7 @@ class OverlayWindow(QWidget):
         self._confidence = payload.confidence_text
         self._matched = payload.matched
         self._debug_image = payload.debug_image
+        self._ocr_region = payload.ocr_region
 
         self._recompute_size()
         self._move_near_cursor(payload.cursor_pos)
@@ -138,7 +140,24 @@ class OverlayWindow(QWidget):
                 rgb_image = self._debug_image[:, :, ::-1].copy()
                 qimg = QImage(rgb_image.data, w, h, w * 3, QImage.Format_RGB888)
                 img_y = conf_rect.bottom() + self._line_gap
-                painter.drawImage(self._padding, img_y, qimg.scaled(200, 150, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                scaled_img = qimg.scaled(200, 150, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                painter.drawImage(self._padding, img_y, scaled_img)
+                
+                if self._ocr_region:
+                    rx, ry, rw, rh = self._ocr_region
+                    scale_x = scaled_img.width() / w
+                    scale_y = scaled_img.height() / h
+                    rect_x = int(rx * scale_x)
+                    rect_y = int(ry * scale_y)
+                    rect_w = int(rw * scale_x)
+                    rect_h = int(rh * scale_y)
+                    painter.setPen(QPen(QColor(255, 0, 0), 2))
+                    painter.drawRect(self._padding + rect_x, img_y + rect_y, rect_w, rect_h)
+                    
+                    ocr_text = f"OCR: +{rx},+{ry} {rw}x{rh}"
+                    painter.setPen(QColor(255, 0, 0))
+                    painter.setFont(self._confidence_font)
+                    painter.drawText(self._padding, img_y + scaled_img.height() + 14, ocr_text)
 
     def _recompute_size(self) -> None:
         text_width = self._config.width - (self._padding * 2)

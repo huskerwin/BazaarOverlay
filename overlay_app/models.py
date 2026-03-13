@@ -33,3 +33,4 @@ class OverlayPayload:
     confidence_text: str
     matched: bool
     debug_image: np.ndarray | None = None
+    ocr_region: tuple[int, int, int, int] | None = None

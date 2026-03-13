@@ -140,6 +140,10 @@ class AppController(QObject):
                 self.overlay_show.emit(payload)
             except Exception:
                 LOGGER.exception("Detection loop error.")
+                ocr_region_err = None
+                if self._show_ocr_region and self._use_ocr:
+                    ocr_region_err = (self._ocr_region["left"], self._ocr_region["top"], 
+                                     self._ocr_region["width"], self._ocr_region["height"])
                 self.overlay_show.emit(
                     OverlayPayload(
                         cursor_pos=(0, 0),
@@ -148,6 +152,7 @@ class AppController(QObject):
                         confidence_text="Runtime error",
                         matched=False,
                         debug_image=None,
+                        ocr_region=ocr_region_err,
                     )
                 )
                 time.sleep(0.20)
@@ -278,6 +283,11 @@ class AppController(QObject):
         if self._config.debug:
             confidence_text = f"{confidence_text} | {elapsed_ms:.1f} ms"
 
+        ocr_region = None
+        if self._show_ocr_region and self._use_ocr:
+            ocr_region = (self._ocr_region["left"], self._ocr_region["top"], 
+                         self._ocr_region["width"], self._ocr_region["height"])
+        
         return OverlayPayload(
             cursor_pos=cursor_pos,
             title=title,
@@ -285,4 +295,5 @@ class AppController(QObject):
             confidence_text=confidence_text,
             matched=matched,
             debug_image=debug_image,
+            ocr_region=ocr_region,
         )
