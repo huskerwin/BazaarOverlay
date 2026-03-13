@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 import numpy as np
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QGuiApplication, QImage, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
@@ -195,6 +195,8 @@ class OverlayWindow(QWidget):
 
 
 class DebugOverlayWindow(QWidget):
+    hide_debug_signal = Signal()
+    
     def __init__(self):
         super().__init__()
         self._debug_image: np.ndarray | None = None
@@ -210,6 +212,8 @@ class DebugOverlayWindow(QWidget):
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.setAttribute(Qt.WA_ShowWithoutActivating, True)
 
+        self.hide_debug_signal.connect(self.hide_debug, Qt.QueuedConnection)
+        
         self.resize(300, 250)
         self.hide()
 

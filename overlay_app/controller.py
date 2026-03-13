@@ -120,7 +120,7 @@ class AppController(QObject):
             self._reset_temporal_state()
             self.overlay_hide.emit()
             if self._debug_overlay is not None:
-                self._debug_overlay.hide_debug()
+                self._debug_overlay.hide_debug_signal.emit()
 
     def _worker_loop(self) -> None:
         poll_seconds = self._config.capture.poll_interval_ms / 1000.0
