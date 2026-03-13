@@ -1,0 +1,76 @@
+{
+  "enchantments": [
+    {
+      "id": "golden",
+      "name": "Golden",
+      "description": "This has double value.",
+      "can_enchant": true
+    },
+    {
+      "id": "heavy",
+      "name": "Heavy",
+      "description": "Slow an item for 1 second(s)",
+      "can_enchant": true
+    },
+    {
+      "id": "icy",
+      "name": "Icy",
+      "description": "Freeze an item for 0.5 second(s)",
+      "can_enchant": true
+    },
+    {
+      "id": "turbo",
+      "name": "Turbo",
+      "description": "Haste an item for 1 second(s)",
+      "can_enchant": true
+    },
+    {
+      "id": "shielded",
+      "name": "Shielded",
+      "description": "Shield equal to this item's Damage",
+      "can_enchant": true
+    },
+    {
+      "id": "restorative",
+      "name": "Restorative",
+      "description": "Heal equal to this item's Damage",
+      "can_enchant": true
+    },
+    {
+      "id": "toxic",
+      "name": "Toxic",
+      "description": "Poison equal to 10% of this item's Damage",
+      "can_enchant": true
+    },
+    {
+      "id": "fiery",
+      "name": "Fiery",
+      "description": "Burn equal to 10% of this item's Damage",
+      "can_enchant": true
+    },
+    {
+      "id": "shiny",
+      "name": "Shiny",
+      "description": "This has +1 Multicast.",
+      "can_enchant": true
+    },
+    {
+      "id": "deadly",
+      "name": "Deadly",
+      "description": "This has +50% Crit Chance.",
+      "can_enchant": true
+    },
+    {
+      "id": "radiant",
+      "name": "Radiant",
+      "description": "This item is immune to Freeze, Slow and Destroy.",
+      "can_enchant": true
+    },
+    {
+      "id": "obsidian",
+      "name": "Obsidian",
+      "description": "This has double Damage.",
+      "can_enchant": true
+    }
+  ]
+}
