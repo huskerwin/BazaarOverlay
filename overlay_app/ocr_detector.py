@@ -155,40 +155,42 @@ class OcrItemDetector:
         Tries multiple matching strategies:
         1. Exact match (case-insensitive)
         2. Contains match (skip if detected text is blacklisted)
-        3. Apostrophe-insensitive match
-        4. Fuzzy normalized match
+        3. Apostrophe-insensitive match (skip if blacklisted)
+        4. Fuzzy normalized match (skip if blacklisted)
         """
         text_lower = text.lower()
         text_words = set(re.findall(r'\b[a-z]+\b', text_lower))
+        has_blacklist_word = bool(text_words & self.BLACKLIST)
         
-        # 1. Exact match
+        # 1. Exact match (always allowed)
         if text_lower in self._item_names:
             return self._item_names[text_lower]
         
-        # Skip if any blacklisted word appears in the detected text
-        if text_words & self.BLACKLIST:
-            LOGGER.info("OCR: Skipping blacklisted word in '%s'", text)
-            return None
+        # 2. Contains match (skip if blacklisted)
+        if not has_blacklist_word:
+            for name_lower, original_name in self._item_names.items():
+                if name_lower in text_lower or text_lower in name_lower:
+                    return original_name
         
-        # 2. Contains match
-        for name_lower, original_name in self._item_names.items():
-            if name_lower in text_lower or text_lower in name_lower:
-                return original_name
+        # 3. Apostrophe-insensitive match (skip if blacklisted)
+        if not has_blacklist_word:
+            text_no_apostrophe = text_lower.replace("'", "")
+            for name_lower, original_name in self._item_names.items():
+                name_no_apostrophe = name_lower.replace("'", "")
+                if name_no_apostrophe in text_no_apostrophe or text_no_apostrophe in name_no_apostrophe:
+                    return original_name
         
-        # 3. Apostrophe-insensitive match
-        text_no_apostrophe = text_lower.replace("'", "")
-        for name_lower, original_name in self._item_names.items():
-            name_no_apostrophe = name_lower.replace("'", "")
-            if name_no_apostrophe in text_no_apostrophe or text_no_apostrophe in name_no_apostrophe:
-                return original_name
+        # 4. Fuzzy normalized match (skip if blacklisted)
+        if not has_blacklist_word:
+            text_normalized = self._normalize_for_match(text_lower)
+            for name_lower, original_name in self._item_names.items():
+                name_no_apostrophe = name_lower.replace("'", "")
+                name_normalized = self._normalize_for_match(name_no_apostrophe)
+                if name_normalized in text_normalized or text_normalized in name_normalized:
+                    return original_name
         
-        # 4. Fuzzy normalized match
-        text_normalized = self._normalize_for_match(text_lower)
-        for name_lower, original_name in self._item_names.items():
-            name_no_apostrophe = name_lower.replace("'", "")
-            name_normalized = self._normalize_for_match(name_no_apostrophe)
-            if name_normalized in text_normalized or text_normalized in name_normalized:
-                return original_name
+        if has_blacklist_word:
+            LOGGER.info("OCR: Skipped matches due to blacklisted word in '%s'", text)
         
         return None
     
