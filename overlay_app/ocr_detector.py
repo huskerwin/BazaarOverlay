@@ -167,10 +167,19 @@ class OcrItemDetector:
         if text_lower in self._item_names:
             return self._item_names[text_lower]
         
-        # 2. Word match - check if any item name appears as a standalone word
+        # 2. Word match - check if any item name appears as standalone word(s)
         for name_lower, original_name in self._item_names.items():
-            if name_lower in text_words:
-                return original_name
+            name_words = name_lower.split()
+            if len(name_words) == 1:
+                # Single word item
+                if name_lower in text_words:
+                    return original_name
+            else:
+                # Multi-word item (e.g., "Grappling Hook") - check as phrase
+                if name_lower in text_lower:
+                    # Check if any word in the item name is blacklisted
+                    if not (set(name_words) & self.BLACKLIST):
+                        return original_name
         
         # 3. Contains match (skip if blacklisted)
         if not has_blacklist_word:
