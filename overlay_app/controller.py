@@ -31,7 +31,7 @@ class AppController(QObject):
     overlay_show = Signal(object)
     overlay_hide = Signal()
 
-    def __init__(self, config: AppConfig, items: list[ItemDefinition], overlay: OverlayWindow):
+    def __init__(self, config: AppConfig, items: list[ItemDefinition], overlay: OverlayWindow, debug_overlay=None):
         super().__init__()
         self._config = config
 
@@ -43,6 +43,7 @@ class AppController(QObject):
         self._smoothed_confidence = 0.0
 
         self._overlay = overlay
+        self._debug_overlay = debug_overlay
         self._matcher = TemplateMatcher(items=items, config=config.matching)
         
         requested_radius = config.capture.roi_radius
@@ -118,6 +119,8 @@ class AppController(QObject):
             self._active_event.clear()
             self._reset_temporal_state()
             self.overlay_hide.emit()
+            if self._debug_overlay is not None:
+                self._debug_overlay.hide_debug()
 
     def _worker_loop(self) -> None:
         poll_seconds = self._config.capture.poll_interval_ms / 1000.0
@@ -129,11 +132,18 @@ class AppController(QObject):
             started = time.perf_counter()
             try:
                 debug_image = None
+                ocr_region_for_debug = None
                 if self._use_ocr:
                     result, cursor_pos, debug_image = self._ocr_detect()
+                    if self._debug_overlay is not None:
+                        ocr_region_for_debug = (self._ocr_region["left"], self._ocr_region["top"], 
+                                              self._ocr_region["width"], self._ocr_region["height"])
+                        self._debug_overlay.show_debug(debug_image, ocr_region_for_debug, cursor_pos)
                 else:
                     roi_bgr, cursor_pos, _region = self._capture.capture_around_cursor()
                     result = self._matcher.match(roi_bgr)
+                    if self._debug_overlay is not None:
+                        self._debug_overlay.hide_debug()
                 result = self._stabilize_result(result)
                 elapsed_ms = (time.perf_counter() - started) * 1000.0
                 payload = self._build_overlay_payload(cursor_pos, result, elapsed_ms, debug_image)

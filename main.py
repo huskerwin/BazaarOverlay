@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QApplication
 from overlay_app.config import AppConfig, CaptureConfig, MatchConfig, OcrConfig
 from overlay_app.controller import AppController
 from overlay_app.item_repository import ItemRepository
-from overlay_app.overlay_window import OverlayWindow
+from overlay_app.overlay_window import DebugOverlayWindow, OverlayWindow
 from overlay_app.screen_capture import enable_dpi_awareness
 
 
@@ -117,7 +117,8 @@ def main() -> int:
     app.setQuitOnLastWindowClosed(False)
 
     overlay = OverlayWindow(config.overlay)
-    controller = AppController(config=config, items=items, overlay=overlay)
+    debug_overlay = DebugOverlayWindow() if config.debug else None
+    controller = AppController(config=config, items=items, overlay=overlay, debug_overlay=debug_overlay)
     controller.start()
     app.aboutToQuit.connect(controller.shutdown)
 

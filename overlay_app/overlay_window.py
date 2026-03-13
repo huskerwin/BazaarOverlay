@@ -15,7 +15,7 @@ LOGGER = logging.getLogger("overlay.ui")
 try:
     import win32con
     import win32gui
-except Exception:  # pragma: no cover - runtime dependency boundary
+except Exception:
     win32con = None
     win32gui = None
 
@@ -71,11 +71,11 @@ class OverlayWindow(QWidget):
     def hide_overlay(self) -> None:
         self.hide()
 
-    def showEvent(self, event) -> None:  # noqa: N802
+    def showEvent(self, event) -> None:
         super().showEvent(event)
         self._apply_click_through()
 
-    def paintEvent(self, _event) -> None:  # noqa: N802
+    def paintEvent(self, _event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
@@ -133,31 +133,6 @@ class OverlayWindow(QWidget):
             int(Qt.TextWordWrap | Qt.AlignLeft | Qt.AlignTop),
             self._confidence,
         )
-
-        if self._debug_image is not None and self._debug_image.size > 0:
-            h, w = self._debug_image.shape[:2]
-            if h > 0 and w > 0 and h <= 300 and w <= 400:
-                rgb_image = self._debug_image[:, :, ::-1].copy()
-                qimg = QImage(rgb_image.data, w, h, w * 3, QImage.Format_RGB888)
-                img_y = conf_rect.bottom() + self._line_gap
-                scaled_img = qimg.scaled(200, 150, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                painter.drawImage(self._padding, img_y, scaled_img)
-                
-                if self._ocr_region:
-                    rx, ry, rw, rh = self._ocr_region
-                    scale_x = scaled_img.width() / w
-                    scale_y = scaled_img.height() / h
-                    rect_x = int(rx * scale_x)
-                    rect_y = int(ry * scale_y)
-                    rect_w = int(rw * scale_x)
-                    rect_h = int(rh * scale_y)
-                    painter.setPen(QPen(QColor(255, 0, 0), 2))
-                    painter.drawRect(self._padding + rect_x, img_y + rect_y, rect_w, rect_h)
-                    
-                    ocr_text = f"OCR: +{rx},+{ry} {rw}x{rh}"
-                    painter.setPen(QColor(255, 0, 0))
-                    painter.setFont(self._confidence_font)
-                    painter.drawText(self._padding, img_y + scaled_img.height() + 14, ocr_text)
 
     def _recompute_size(self) -> None:
         text_width = self._config.width - (self._padding * 2)
@@ -217,3 +192,91 @@ class OverlayWindow(QWidget):
             win32gui.SetWindowLong(hwnd, win32con.GWL_EXSTYLE, style)
         except Exception:
             LOGGER.exception("Unable to apply click-through window style.")
+
+
+class DebugOverlayWindow(QWidget):
+    def __init__(self):
+        super().__init__()
+        self._debug_image: np.ndarray | None = None
+        self._ocr_region: tuple[int, int, int, int] | None = None
+
+        self.setWindowFlags(
+            Qt.FramelessWindowHint
+            | Qt.Tool
+            | Qt.WindowStaysOnTopHint
+            | Qt.WindowDoesNotAcceptFocus
+        )
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
+
+        self.resize(300, 250)
+        self.hide()
+
+    def show_debug(self, debug_image: np.ndarray | None, ocr_region: tuple[int, int, int, int] | None, cursor_pos: tuple[int, int]) -> None:
+        self._debug_image = debug_image
+        self._ocr_region = ocr_region
+
+        h, w = 250, 300
+        if debug_image is not None and debug_image.size > 0:
+            ih, iw = debug_image.shape[:2]
+            if ih > 0 and iw > 0:
+                h = min(ih + 20, 300)
+                w = min(iw + 20, 400)
+        
+        self.resize(w, h)
+        self._move_near_cursor(cursor_pos)
+
+        if not self.isVisible():
+            self.show()
+        self.raise_()
+        self.update()
+
+    def hide_debug(self) -> None:
+        self.hide()
+
+    def paintEvent(self, _event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        if self._debug_image is not None and self._debug_image.size > 0:
+            h, w = self._debug_image.shape[:2]
+            if h > 0 and w > 0:
+                rgb_image = self._debug_image[:, :, ::-1].copy()
+                qimg = QImage(rgb_image.data, w, h, w * 3, QImage.Format_RGB888)
+                scaled = qimg.scaled(self.width() - 10, self.height() - 10, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                painter.drawImage(5, 5, scaled)
+                
+                if self._ocr_region:
+                    rx, ry, rw, rh = self._ocr_region
+                    scale_x = scaled.width() / w
+                    scale_y = scaled.height() / h
+                    rect_x = int(rx * scale_x) + 5
+                    rect_y = int(ry * scale_y) + 5
+                    rect_w = int(rw * scale_x)
+                    rect_h = int(rh * scale_y)
+                    painter.setPen(QPen(QColor(255, 0, 0), 3))
+                    painter.drawRect(rect_x, rect_y, rect_w, rect_h)
+                    
+                    painter.setPen(QColor(255, 0, 0))
+                    painter.setFont(QFont("Consolas", 9))
+                    painter.drawText(rect_x, rect_y - 5, f"OCR: +{rx},+{ry}")
+
+    def _move_near_cursor(self, cursor_pos: tuple[int, int]) -> None:
+        target_x = cursor_pos[0] + 20
+        target_y = cursor_pos[1] + 20
+
+        screen = QGuiApplication.screenAt(QPoint(cursor_pos[0], cursor_pos[1]))
+        if screen is None:
+            screen = QGuiApplication.primaryScreen()
+        if screen is None:
+            self.move(target_x, target_y)
+            return
+
+        geometry = screen.availableGeometry()
+        max_x = geometry.x() + geometry.width() - self.width()
+        max_y = geometry.y() + geometry.height() - self.height()
+
+        clamped_x = max(geometry.x(), min(target_x, max_x))
+        clamped_y = max(geometry.y(), min(target_y, max_y))
+        self.move(clamped_x, clamped_y)
