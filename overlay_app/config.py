@@ -15,6 +15,7 @@ class CaptureConfig:
     """Screen capture configuration."""
     roi_radius: int = 400  # Radius around cursor to capture
     poll_interval_ms: int = 75  # Detection loop interval
+    skip_frames: int = 1  # Skip OCR every N frames (1 = no skip)
 
 
 @dataclass(frozen=True)

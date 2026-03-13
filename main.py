@@ -48,6 +48,12 @@ def parse_args() -> argparse.Namespace:
         help="Capture radius around cursor in pixels.",
     )
     parser.add_argument(
+        "--skip-frames",
+        type=int,
+        default=1,
+        help="Skip OCR every N frames (1 = no skip, 2 = half speed, etc).",
+    )
+    parser.add_argument(
         "--poll-ms",
         type=int,
         default=75,
@@ -75,6 +81,7 @@ def build_config(args: argparse.Namespace) -> AppConfig:
     capture = CaptureConfig(
         roi_radius=max(24, int(args.roi_radius)),
         poll_interval_ms=max(25, int(args.poll_ms)),
+        skip_frames=max(1, int(args.skip_frames)),
     )
     
     # Parse OCR region: "x,y,width,height"
@@ -82,7 +89,7 @@ def build_config(args: argparse.Namespace) -> AppConfig:
     if len(ocr_region) == 4:
         ocr_x, ocr_y, ocr_w, ocr_h = map(int, ocr_region)
     else:
-        ocr_x, ocr_y, ocr_w, ocr_h = 1000, -50, 200, 40
+        ocr_x, ocr_y, ocr_w, ocr_h = 0, 0, 0, 0
     
     ocr = OcrConfig(
         enabled=True,  # OCR is always enabled

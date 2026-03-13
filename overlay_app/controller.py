@@ -64,6 +64,7 @@ class AppController(QObject):
         self._overlay = overlay
         self._debug_overlay = debug_overlay
         self._debug_shown_this_activation = False
+        self._last_result: tuple[MatchResult, tuple[int, int]] | None = None
         
         # Initialize screen capture
         self._capture = ScreenCapture(config.capture.roi_radius)
@@ -152,19 +153,42 @@ class AppController(QObject):
         Runs in separate thread while hotkey is active.
         """
         poll_seconds = self._config.capture.poll_interval_ms / 1000.0
+        frame_count = 0
 
         while not self._shutdown_event.is_set():
             # Wait for hotkey activation
             if not self._active_event.wait(timeout=0.10):
                 continue
 
-            # Reset debug flag at start of new activation
+            # Reset debug flag and frame count at start of new activation
             self._debug_shown_this_activation = False
+            frame_count = 0
+            self._last_result = None  # Clear cached result
             
             started = time.perf_counter()
             try:
+                # Check if we should skip this frame
+                skip_every = self._config.capture.skip_frames
+                
+                if skip_every > 1:
+                    frame_count += 1
+                    if frame_count % skip_every != 1:
+                        # Skip OCR, use last result
+                        if self._last_result is not None:
+                            result, cursor_pos = self._last_result
+                            elapsed_ms = (time.perf_counter() - started) * 1000.0
+                            payload = self._build_overlay_payload(
+                                cursor_pos, 
+                                result, 
+                                elapsed_ms, 
+                                None
+                            )
+                            self.overlay_show.emit(payload)
+                            continue
+                
                 # Run OCR detection
                 result, cursor_pos, debug_image = self._detect()
+                self._last_result = (result, cursor_pos)  # Cache for skipping
                 
                 # Show debug overlay only once per activation
                 if self._debug_overlay is not None and not self._debug_shown_this_activation:
