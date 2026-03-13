@@ -48,7 +48,7 @@ def parse_args(args: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--roi-width",
         type=int,
-        default=1000,
+        default=1200,
         help="Capture width around cursor in pixels.",
     )
     parser.add_argument(
