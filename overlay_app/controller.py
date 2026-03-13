@@ -10,7 +10,6 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import TypedDict
 
 import cv2
 import numpy as np
