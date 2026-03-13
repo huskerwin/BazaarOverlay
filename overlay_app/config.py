@@ -13,8 +13,8 @@ class CaptureConfig:
 @dataclass(frozen=True)
 class OcrConfig:
     enabled: bool = True
-    region_x: int = 100
-    region_y: int = 0
+    region_x: int = 200
+    region_y: int = -50
     region_width: int = 200
     region_height: int = 40
 
