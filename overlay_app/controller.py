@@ -66,7 +66,7 @@ class AppController(QObject):
         self._last_result: tuple[MatchResult, tuple[int, int]] | None = None
         
         # Initialize screen capture
-        self._capture = ScreenCapture(config.capture.roi_radius)
+        self._capture = ScreenCapture(config.capture.roi_width, config.capture.roi_height)
         
         # Initialize OCR detector with known item names
         item_names = {item.name for item in items}

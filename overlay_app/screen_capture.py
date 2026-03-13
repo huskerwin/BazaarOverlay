@@ -30,8 +30,9 @@ def enable_dpi_awareness() -> None:
 
 
 class ScreenCapture:
-    def __init__(self, roi_radius: int):
-        self._roi_radius = max(24, roi_radius)
+    def __init__(self, roi_width: int, roi_height: int):
+        self._roi_width = max(24, roi_width)
+        self._roi_height = max(24, roi_height)
         self._local = threading.local()
 
     def _session(self) -> tuple[mss.mss, dict[str, int]]:
@@ -46,14 +47,14 @@ class ScreenCapture:
         capture, desktop = self._session()
         cursor_x, cursor_y = win32api.GetCursorPos()
 
-        left = max(desktop["left"], cursor_x - self._roi_radius)
-        top = max(desktop["top"], cursor_y - self._roi_radius)
+        left = max(desktop["left"], cursor_x - self._roi_width // 2)
+        top = max(desktop["top"], cursor_y - self._roi_height // 2)
 
         right_limit = desktop["left"] + desktop["width"]
         bottom_limit = desktop["top"] + desktop["height"]
 
-        right = min(right_limit, cursor_x + self._roi_radius)
-        bottom = min(bottom_limit, cursor_y + self._roi_radius)
+        right = min(right_limit, cursor_x + (self._roi_width + 1) // 2)
+        bottom = min(bottom_limit, cursor_y + (self._roi_height + 1) // 2)
 
         region: CaptureRegion = {
             "left": int(left),

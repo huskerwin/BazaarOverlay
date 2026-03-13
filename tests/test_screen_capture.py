@@ -36,7 +36,7 @@ def test_screen_capture_uses_thread_local_sessions(monkeypatch) -> None:
     monkeypatch.setattr(screen_capture.mss, "mss", fake_mss)
     monkeypatch.setattr(screen_capture.win32api, "GetCursorPos", lambda: (100, 100))
 
-    capture = screen_capture.ScreenCapture(roi_radius=24)
+    capture = screen_capture.ScreenCapture(roi_width=48, roi_height=48)
 
     frame_1, cursor_1, region_1 = capture.capture_around_cursor()
     frame_2, cursor_2, region_2 = capture.capture_around_cursor()

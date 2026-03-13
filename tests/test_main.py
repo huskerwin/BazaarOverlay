@@ -21,7 +21,8 @@ def test_default_config():
     config = build_config(args)
     
     assert config.debug is False
-    assert config.capture.roi_radius == 400
+    assert config.capture.roi_width == 800
+    assert config.capture.roi_height == 600
     assert config.capture.poll_interval_ms == 75
     assert config.capture.skip_frames == 1
     assert config.ocr.region_x == 0
@@ -40,24 +41,44 @@ def test_debug_flag():
     assert config.debug is True
 
 
-def test_roi_radius():
-    """Test --roi-radius flag."""
+def test_roi_width():
+    """Test --roi-width flag."""
     from main import parse_args, build_config
     
-    args = parse_args(['--roi-radius', '200'])
+    args = parse_args(['--roi-width', '400'])
     config = build_config(args)
     
-    assert config.capture.roi_radius == 200
+    assert config.capture.roi_width == 400
 
 
-def test_roi_radius_minimum():
-    """Test that roi-radius has minimum value."""
+def test_roi_width_minimum():
+    """Test that roi-width has minimum value."""
     from main import parse_args, build_config
     
-    args = parse_args(['--roi-radius', '10'])
+    args = parse_args(['--roi-width', '10'])
     config = build_config(args)
     
-    assert config.capture.roi_radius == 24  # minimum
+    assert config.capture.roi_width == 24  # minimum
+
+
+def test_roi_height():
+    """Test --roi-height flag."""
+    from main import parse_args, build_config
+    
+    args = parse_args(['--roi-height', '300'])
+    config = build_config(args)
+    
+    assert config.capture.roi_height == 300
+
+
+def test_roi_height_minimum():
+    """Test that roi-height has minimum value."""
+    from main import parse_args, build_config
+    
+    args = parse_args(['--roi-height', '10'])
+    config = build_config(args)
+    
+    assert config.capture.roi_height == 24  # minimum
 
 
 def test_poll_interval():

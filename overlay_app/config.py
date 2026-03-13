@@ -13,7 +13,8 @@ from pathlib import Path
 @dataclass(frozen=True)
 class CaptureConfig:
     """Screen capture configuration."""
-    roi_radius: int = 400  # Radius around cursor to capture
+    roi_width: int = 800   # Width around cursor to capture
+    roi_height: int = 600  # Height around cursor to capture
     poll_interval_ms: int = 75  # Detection loop interval
     skip_frames: int = 1  # Skip OCR every N frames (1 = no skip)
 

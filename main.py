@@ -46,10 +46,16 @@ def parse_args(args: list[str] | None = None) -> argparse.Namespace:
         help="Enable debug mode showing OCR region.",
     )
     parser.add_argument(
-        "--roi-radius",
+        "--roi-width",
         type=int,
-        default=400,
-        help="Capture radius around cursor in pixels.",
+        default=800,
+        help="Capture width around cursor in pixels.",
+    )
+    parser.add_argument(
+        "--roi-height",
+        type=int,
+        default=600,
+        help="Capture height around cursor in pixels.",
     )
     parser.add_argument(
         "--skip-frames",
@@ -83,7 +89,8 @@ def configure_logging(debug: bool) -> None:
 def build_config(args: argparse.Namespace) -> AppConfig:
     """Build app configuration from parsed arguments."""
     capture = CaptureConfig(
-        roi_radius=max(24, int(args.roi_radius)),
+        roi_width=max(24, int(args.roi_width)),
+        roi_height=max(24, int(args.roi_height)),
         poll_interval_ms=max(25, int(args.poll_ms)),
         skip_frames=max(1, int(args.skip_frames)),
     )
