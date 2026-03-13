@@ -79,7 +79,7 @@ def build_config(args: argparse.Namespace) -> AppConfig:
     if len(ocr_region) == 4:
         ocr_x, ocr_y, ocr_w, ocr_h = map(int, ocr_region)
     else:
-        ocr_x, ocr_y, ocr_w, ocr_h = 0, 0, 200, 200
+        ocr_x, ocr_y, ocr_w, ocr_h = 100, 0, 200, 40
     
     ocr = OcrConfig(
         enabled=bool(args.ocr),

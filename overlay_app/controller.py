@@ -45,11 +45,18 @@ class AppController(QObject):
         self._overlay = overlay
         self._matcher = TemplateMatcher(items=items, config=config.matching)
         
+        requested_radius = config.capture.roi_radius
+        required_radius = self._matcher.minimum_roi_radius
+        effective_radius = max(requested_radius, required_radius)
+        
         self._use_ocr = config.ocr.enabled
         self._show_ocr_region = config.debug and config.ocr.enabled
-        LOGGER.info("Debug mode: %s, OCR enabled: %s, Show OCR region: %s", config.debug, config.ocr.enabled, self._show_ocr_region)
+        LOGGER.info("Controller init - debug: %s, ocr: %s, show_region: %s, roi_radius: %s",
+                    config.debug, config.ocr.enabled, self._show_ocr_region, effective_radius)
+        
         if self._use_ocr:
             item_names = {item.name for item in items}
+            LOGGER.info("Initializing OCR detector...")
             self._ocr_detector = OcrItemDetector(item_names)
             self._ocr_region: OcrRegion = {
                 "left": config.ocr.region_x,
@@ -59,9 +66,6 @@ class AppController(QObject):
             }
             LOGGER.info("OCR detection enabled with region: %s", self._ocr_region)
 
-        requested_radius = config.capture.roi_radius
-        required_radius = self._matcher.minimum_roi_radius
-        effective_radius = max(requested_radius, required_radius)
         if effective_radius != requested_radius:
             LOGGER.warning(
                 "ROI radius %d is too small for current templates; using %d.",

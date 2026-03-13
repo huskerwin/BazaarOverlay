@@ -4,3 +4,5 @@ __pycache__/
 .env
 .DS_Store
 .pytest_cache/
+create_jira_tasks.py
+set_jira_dates.py
