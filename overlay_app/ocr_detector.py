@@ -1,3 +1,9 @@
+"""
+OCR-based item detection using EasyOCR.
+
+Extracts text from a configurable region and matches against known item names.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -12,6 +18,7 @@ LOGGER = logging.getLogger("overlay.ocr_detector")
 
 
 class OcrRegion(TypedDict):
+    """OCR region definition relative to captured ROI."""
     left: int
     top: int
     width: int
@@ -19,24 +26,55 @@ class OcrRegion(TypedDict):
 
 
 class OcrItemDetector:
+    """
+    OCR-based item detector using EasyOCR.
+    
+    Extracts text from game UI and matches against item names from database.
+    Supports fuzzy matching for OCR errors and common variations.
+    """
+    
     def __init__(self, item_names: set[str]):
+        """
+        Initialize OCR detector with known item names.
+        
+        Args:
+            item_names: Set of item names to match against
+        """
+        # Map lowercase names to original for case-insensitive matching
         self._item_names = {name.lower(): name for name in item_names}
         self._last_result: str | None = None
         self._last_detected_text: str | None = None
+        
+        # Initialize EasyOCR reader (loads model on first use)
+        # gpu=False uses CPU, set to True for GPU acceleration
         self._reader = easyocr.Reader(['en'], gpu=False, verbose=False)
     
     @property
     def last_detected_text(self) -> str | None:
+        """Returns the last detected text from OCR."""
         return self._last_detected_text
     
     def detect_from_image(self, frame: np.ndarray, region: OcrRegion | None = None) -> str | None:
+        """
+        Detect item name from image frame using OCR.
+        
+        Args:
+            frame: BGR image data from screen capture
+            region: Optional region to crop before OCR
+            
+        Returns:
+            Matched item name or None if no match
+        """
         if frame is None or frame.size == 0:
             return None
         
         try:
+            # Crop to OCR region if specified
             if region:
                 x, y = region["left"], region["top"]
                 w, h = region["width"], region["height"]
+                
+                # Validate region bounds
                 if x < 0 or y < 0 or w <= 0 or h <= 0:
                     return None
                 if y + h > frame.shape[0] or x + w > frame.shape[1]:
@@ -45,24 +83,29 @@ class OcrItemDetector:
             else:
                 crop = frame
             
+            # Run EasyOCR to extract text
             results = self._reader.readtext(crop, detail=0)
             
             if not results:
                 LOGGER.info("OCR: No text detected")
                 return None
             
+            # Combine all detected text
             text_results: list[str] = [str(r) for r in results]
             combined_text = ' '.join(text_results)
             LOGGER.info("OCR raw text: '%s'", combined_text)
             
+            # Clean and normalize text
             cleaned = self._clean_text(combined_text)
             LOGGER.info("OCR cleaned text: '%s'", cleaned)
             
+            # Store for later retrieval
             self._last_detected_text = cleaned
             
             if not cleaned:
                 return None
             
+            # Try to match against known items
             match = self._find_best_match(cleaned)
             if match:
                 LOGGER.info("OCR matched to: '%s'", match)
@@ -77,12 +120,26 @@ class OcrItemDetector:
             return None
     
     def _clean_text(self, text: str) -> str:
+        """
+        Clean OCR output for matching.
+        
+        - Strips whitespace
+        - Normalizes spaces
+        - Removes special characters
+        """
         text = text.strip()
-        text = re.sub(r'\s+', ' ', text)
-        text = re.sub(r'[^a-zA-Z0-9\'\s]', '', text)
+        text = re.sub(r'\s+', ' ', text)  # Normalize whitespace
+        text = re.sub(r'[^a-zA-Z0-9\'\s]', '', text)  # Keep only alphanumeric
         return text.strip()
     
     def _normalize_for_match(self, text: str) -> str:
+        """
+        Normalize text for fuzzy matching.
+        
+        - Lowercase
+        - Remove apostrophes
+        - Remove trailing 's' for plural handling
+        """
         text = text.lower()
         text = text.replace("'", "")
         words = text.split()
@@ -90,21 +147,34 @@ class OcrItemDetector:
         return ' '.join(normalized_words)
     
     def _find_best_match(self, text: str) -> str | None:
+        """
+        Find best matching item name for OCR text.
+        
+        Tries multiple matching strategies:
+        1. Exact match (case-insensitive)
+        2. Contains match
+        3. Apostrophe-insensitive match
+        4. Fuzzy normalized match
+        """
         text_lower = text.lower()
         
+        # 1. Exact match
         if text_lower in self._item_names:
             return self._item_names[text_lower]
         
+        # 2. Contains match
         for name_lower, original_name in self._item_names.items():
             if name_lower in text_lower or text_lower in name_lower:
                 return original_name
         
+        # 3. Apostrophe-insensitive match
         text_no_apostrophe = text_lower.replace("'", "")
         for name_lower, original_name in self._item_names.items():
             name_no_apostrophe = name_lower.replace("'", "")
             if name_no_apostrophe in text_no_apostrophe or text_no_apostrophe in name_no_apostrophe:
                 return original_name
         
+        # 4. Fuzzy normalized match
         text_normalized = self._normalize_for_match(text_lower)
         for name_lower, original_name in self._item_names.items():
             name_no_apostrophe = name_lower.replace("'", "")
@@ -115,4 +185,5 @@ class OcrItemDetector:
         return None
     
     def get_last_result(self) -> str | None:
+        """Returns the last matched item name."""
         return self._last_result

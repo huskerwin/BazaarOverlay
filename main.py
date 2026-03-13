@@ -1,3 +1,13 @@
+"""
+Bazaar Overlay - OCR-based item info overlay for games.
+
+Usage:
+    python main.py              # Normal mode
+    python main.py --debug      # Debug mode (shows OCR region)
+
+Hold Shift+E over an item in the game to see its info.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -15,6 +25,7 @@ from overlay_app.screen_capture import enable_dpi_awareness
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments."""
     default_items = Path(__file__).resolve().parent / "data" / "items.json"
     parser = argparse.ArgumentParser(
         description="Display item info overlay using OCR while holding Shift+E."
@@ -52,6 +63,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def configure_logging(debug: bool) -> None:
+    """Configure logging based on debug flag."""
     logging.basicConfig(
         level=logging.DEBUG if debug else logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -59,11 +71,13 @@ def configure_logging(debug: bool) -> None:
 
 
 def build_config(args: argparse.Namespace) -> AppConfig:
+    """Build app configuration from parsed arguments."""
     capture = CaptureConfig(
         roi_radius=max(24, int(args.roi_radius)),
         poll_interval_ms=max(25, int(args.poll_ms)),
     )
     
+    # Parse OCR region: "x,y,width,height"
     ocr_region = args.ocr_region.split(",")
     if len(ocr_region) == 4:
         ocr_x, ocr_y, ocr_w, ocr_h = map(int, ocr_region)
@@ -71,7 +85,7 @@ def build_config(args: argparse.Namespace) -> AppConfig:
         ocr_x, ocr_y, ocr_w, ocr_h = 500, -50, 200, 40
     
     ocr = OcrConfig(
-        enabled=True,
+        enabled=True,  # OCR is always enabled
         region_x=ocr_x,
         region_y=ocr_y,
         region_width=ocr_w,
@@ -87,25 +101,37 @@ def build_config(args: argparse.Namespace) -> AppConfig:
 
 
 def main() -> int:
+    """Main entry point."""
     args = parse_args()
     configure_logging(debug=bool(args.debug))
 
+    # Enable DPI awareness for accurate screen coordinates
     enable_dpi_awareness()
     config = build_config(args)
+    
+    # Load item definitions from JSON
     repository = ItemRepository()
-
     try:
         items = repository.load_items(config.items_path)
     except Exception as exc:
         logging.getLogger("overlay.main").error("Failed to load item database: %s", exc)
         return 1
 
+    # Create Qt application
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
 
+    # Create overlay windows
     overlay = OverlayWindow(config.overlay)
     debug_overlay = DebugOverlayWindow() if config.debug else None
-    controller = AppController(config=config, items=items, overlay=overlay, debug_overlay=debug_overlay)
+    
+    # Create and start controller
+    controller = AppController(
+        config=config, 
+        items=items, 
+        overlay=overlay, 
+        debug_overlay=debug_overlay
+    )
     controller.start()
     app.aboutToQuit.connect(controller.shutdown)
 

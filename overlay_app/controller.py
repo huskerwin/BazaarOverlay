@@ -1,3 +1,10 @@
+"""
+Application controller.
+
+Orchestrates hotkey detection, screen capture, OCR detection, and overlay rendering.
+Runs detection in a worker thread while hotkey is active.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -11,7 +18,7 @@ from PySide6.QtCore import QObject, QTimer, Signal
 
 from .config import AppConfig
 from .hotkey_listener import HoldHotkeyListener
-from .models import ItemDefinition, MatchResult, OverlayPayload
+from .models import ItemDefinition, MatchResult, OverlayPayload, OcrRegion
 from .ocr_detector import OcrItemDetector
 from .overlay_window import OverlayWindow
 from .screen_capture import ScreenCapture
@@ -19,32 +26,53 @@ from .screen_capture import ScreenCapture
 LOGGER = logging.getLogger("overlay.controller")
 
 
-class OcrRegion(TypedDict):
-    left: int
-    top: int
-    width: int
-    height: int
-
-
 class AppController(QObject):
+    """
+    Main application controller.
+    
+    Coordinates hotkey detection, screen capture, OCR detection, and overlay updates.
+    Uses Qt signals for thread-safe UI updates.
+    """
+    
+    # Qt signals for UI updates
     overlay_show = Signal(object)
     overlay_hide = Signal()
 
-    def __init__(self, config: AppConfig, items: list[ItemDefinition], overlay: OverlayWindow, debug_overlay=None):
+    def __init__(
+        self, 
+        config: AppConfig, 
+        items: list[ItemDefinition], 
+        overlay: OverlayWindow,
+        debug_overlay=None
+    ):
+        """
+        Initialize controller.
+        
+        Args:
+            config: Application configuration
+            items: List of item definitions
+            overlay: Main overlay window
+            debug_overlay: Optional debug overlay window
+        """
         super().__init__()
         self._config = config
 
+        # Stability tracking - require 2 consecutive matches
         self._last_item_name: str | None = None
         self._item_streak = 0
 
         self._overlay = overlay
         self._debug_overlay = debug_overlay
         
+        # Initialize screen capture
         self._capture = ScreenCapture(config.capture.roi_radius)
         
+        # Initialize OCR detector with known item names
         item_names = {item.name for item in items}
         LOGGER.info("Initializing OCR detector...")
         self._ocr_detector = OcrItemDetector(item_names)
+        
+        # Configure OCR region
         self._ocr_region: OcrRegion = {
             "left": config.ocr.region_x,
             "top": config.ocr.region_y,
@@ -53,13 +81,20 @@ class AppController(QObject):
         }
         LOGGER.info("OCR detection enabled with region: %s", self._ocr_region)
 
-        self._hotkey = HoldHotkeyListener(on_state_change=self._on_hotkey_state, trigger_key="e")
+        # Start hotkey listener
+        self._hotkey = HoldHotkeyListener(
+            on_state_change=self._on_hotkey_state, 
+            trigger_key="e"
+        )
         
-        self._items_by_name: dict[str, ItemDefinition] = {item.name: item for item in items}
+        # Build item lookup by name
+        self._items_by_name: dict[str, ItemDefinition] = {
+            item.name: item for item in items
+        }
 
+        # Threading
         self._state_lock = threading.Lock()
         self._active = False
-
         self._active_event = threading.Event()
         self._shutdown_event = threading.Event()
         self._worker_thread = threading.Thread(
@@ -68,14 +103,17 @@ class AppController(QObject):
             daemon=True,
         )
 
+        # Connect Qt signals
         self.overlay_show.connect(self._overlay.show_payload)
         self.overlay_hide.connect(self._overlay.hide_overlay)
 
     def start(self) -> None:
+        """Start the controller (hotkey listener and worker thread)."""
         self._worker_thread.start()
         self._hotkey.start()
 
     def shutdown(self) -> None:
+        """Stop the controller and clean up resources."""
         self._hotkey.stop()
         self._active_event.clear()
         self._reset_temporal_state()
@@ -86,6 +124,11 @@ class AppController(QObject):
             self._worker_thread.join(timeout=2.0)
 
     def _on_hotkey_state(self, active: bool) -> None:
+        """
+        Handle hotkey state changes.
+        
+        Called from hotkey listener thread.
+        """
         with self._state_lock:
             if active == self._active:
                 return
@@ -97,20 +140,29 @@ class AppController(QObject):
             self._active_event.clear()
             self._reset_temporal_state()
             self.overlay_hide.emit()
+            # Hide debug overlay using Qt timer for thread safety
             if self._debug_overlay is not None:
                 QTimer.singleShot(0, self._debug_overlay.hide_debug)
 
     def _worker_loop(self) -> None:
+        """
+        Main detection loop.
+        
+        Runs in separate thread while hotkey is active.
+        """
         poll_seconds = self._config.capture.poll_interval_ms / 1000.0
 
         while not self._shutdown_event.is_set():
+            # Wait for hotkey activation
             if not self._active_event.wait(timeout=0.10):
                 continue
 
             started = time.perf_counter()
             try:
+                # Run OCR detection
                 result, cursor_pos, debug_image = self._detect()
                 
+                # Show debug overlay if enabled
                 if self._debug_overlay is not None:
                     ocr_region_for_debug = (
                         self._ocr_region["left"], 
@@ -118,12 +170,26 @@ class AppController(QObject):
                         self._ocr_region["width"], 
                         self._ocr_region["height"]
                     )
-                    self._debug_overlay.show_debug(debug_image, ocr_region_for_debug, cursor_pos)
+                    self._debug_overlay.show_debug(
+                        debug_image, 
+                        ocr_region_for_debug, 
+                        cursor_pos
+                    )
                 
+                # Apply stability check
                 result = self._stabilize_result(result)
+                
                 elapsed_ms = (time.perf_counter() - started) * 1000.0
-                payload = self._build_overlay_payload(cursor_pos, result, elapsed_ms, debug_image)
+                
+                # Build and emit overlay payload
+                payload = self._build_overlay_payload(
+                    cursor_pos, 
+                    result, 
+                    elapsed_ms, 
+                    debug_image
+                )
                 self.overlay_show.emit(payload)
+                
             except Exception:
                 LOGGER.exception("Detection loop error.")
                 self.overlay_show.emit(
@@ -140,15 +206,23 @@ class AppController(QObject):
                 time.sleep(0.20)
                 continue
 
+            # Maintain poll interval
             elapsed = time.perf_counter() - started
             sleep_for = poll_seconds - elapsed
             if sleep_for > 0:
                 time.sleep(sleep_for)
     
     def _detect(self) -> tuple[MatchResult, tuple[int, int], np.ndarray | None]:
+        """
+        Perform OCR detection on screen capture.
+        
+        Returns:
+            Tuple of (MatchResult, cursor_pos, debug_image)
+        """
         roi_bgr, cursor_pos, _region = self._capture.capture_around_cursor()
         
         debug_image = None
+        # Draw debug info if debug mode enabled
         if self._config.debug and roi_bgr is not None and roi_bgr.size > 0:
             debug_image = roi_bgr.copy()
             
@@ -157,16 +231,28 @@ class AppController(QObject):
             w = self._ocr_region["width"]
             h = self._ocr_region["height"]
             
+            # Draw OCR region rectangle
             if 0 <= x < roi_bgr.shape[1] and 0 <= y < roi_bgr.shape[0]:
                 x2 = min(x + w, roi_bgr.shape[1])
                 y2 = min(y + h, roi_bgr.shape[0])
                 cv2.rectangle(debug_image, (x, y), (x2, y2), (0, 0, 255), 3)
-                cv2.putText(debug_image, "OCR", (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+                cv2.putText(
+                    debug_image, "OCR", (x, y - 5), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2
+                )
             
-            cv2.putText(debug_image, f"ROI: {roi_bgr.shape[1]}x{roi_bgr.shape[0]}", (10, roi_bgr.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1)
+            # Draw ROI size info
+            cv2.putText(
+                debug_image, 
+                f"ROI: {roi_bgr.shape[1]}x{roi_bgr.shape[0]}", 
+                (10, roi_bgr.shape[0] - 10), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1
+            )
         
+        # Run OCR detection
         item_name = self._ocr_detector.detect_from_image(roi_bgr, self._ocr_region)
         
+        # Build result
         if item_name and item_name in self._items_by_name:
             item = self._items_by_name[item_name]
             return MatchResult(
@@ -188,10 +274,16 @@ class AppController(QObject):
         ), cursor_pos, debug_image
 
     def _reset_temporal_state(self) -> None:
+        """Reset stability tracking state."""
         self._last_item_name = None
         self._item_streak = 0
 
     def _stabilize_result(self, result: MatchResult) -> MatchResult:
+        """
+        Apply stability check to avoid flickering.
+        
+        Requires 2 consecutive detections of the same item.
+        """
         if result.item is None:
             self._reset_temporal_state()
             return result
@@ -204,6 +296,7 @@ class AppController(QObject):
             self._last_item_name = current_name
             self._item_streak = 1
 
+        # Require 2 consecutive matches
         stable = self._item_streak >= 2
 
         if stable:
@@ -225,6 +318,11 @@ class AppController(QObject):
         elapsed_ms: float,
         debug_image: np.ndarray | None = None,
     ) -> OverlayPayload:
+        """
+        Build overlay payload from detection result.
+        
+        Shows matched item info or detected text.
+        """
         detected_text = self._ocr_detector.last_detected_text if self._ocr_detector else None
         
         if result.matched and result.item is not None:
@@ -239,8 +337,10 @@ class AppController(QObject):
                 body = "Move cursor over an item name in the game."
             matched = False
 
+        # Show timing in debug mode
         confidence_text = f"{elapsed_ms:.1f} ms" if self._config.debug else ""
 
+        # Include OCR region in debug mode
         ocr_region = None
         if self._config.debug:
             ocr_region = (
