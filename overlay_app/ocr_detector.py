@@ -159,14 +159,15 @@ class OcrItemDetector:
         4. Fuzzy normalized match
         """
         text_lower = text.lower()
+        text_words = set(re.findall(r'\b[a-z]+\b', text_lower))
         
         # 1. Exact match
         if text_lower in self._item_names:
             return self._item_names[text_lower]
         
-        # Skip blacklisted words for contains/fuzzy matching
-        if text_lower in self.BLACKLIST:
-            LOGGER.info("OCR: Skipping blacklisted word '%s'", text_lower)
+        # Skip if any blacklisted word appears in the detected text
+        if text_words & self.BLACKLIST:
+            LOGGER.info("OCR: Skipping blacklisted word in '%s'", text)
             return None
         
         # 2. Contains match
