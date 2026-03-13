@@ -56,7 +56,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--ocr-region",
         type=str,
-        default="500,-50,200,40",
+        default="100,0,200,40",
         help="OCR region as 'x,y,width,height' relative to cursor.",
     )
     return parser.parse_args()

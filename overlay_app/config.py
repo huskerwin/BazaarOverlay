@@ -21,8 +21,8 @@ class CaptureConfig:
 class OcrConfig:
     """OCR detection configuration."""
     enabled: bool = True  # OCR is always enabled
-    region_x: int = 500   # X offset from cursor (right positive)
-    region_y: int = -50   # Y offset from cursor (down positive, negative = up)
+    region_x: int = 100   # X offset from cursor (right positive)
+    region_y: int = 0      # Y offset from cursor (down positive, negative = up)
     region_width: int = 200  # Width of OCR region
     region_height: int = 40   # Height of OCR region
 
