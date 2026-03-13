@@ -63,6 +63,7 @@ class AppController(QObject):
 
         self._overlay = overlay
         self._debug_overlay = debug_overlay
+        self._debug_shown_this_activation = False
         
         # Initialize screen capture
         self._capture = ScreenCapture(config.capture.roi_radius)
@@ -136,6 +137,7 @@ class AppController(QObject):
 
         if active:
             self._active_event.set()
+            self._debug_shown_this_activation = False
         else:
             self._active_event.clear()
             self._reset_temporal_state()
@@ -162,8 +164,9 @@ class AppController(QObject):
                 # Run OCR detection
                 result, cursor_pos, debug_image = self._detect()
                 
-                # Show debug overlay if enabled
-                if self._debug_overlay is not None:
+                # Show debug overlay only once per activation
+                if self._debug_overlay is not None and not self._debug_shown_this_activation:
+                    self._debug_shown_this_activation = True
                     ocr_region_for_debug = (
                         self._ocr_region["left"], 
                         self._ocr_region["top"], 
