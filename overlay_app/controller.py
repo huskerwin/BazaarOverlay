@@ -141,9 +141,9 @@ class AppController(QObject):
             self._active_event.clear()
             self._reset_temporal_state()
             self.overlay_hide.emit()
-            # Hide debug overlay using Qt timer for thread safety
+            # Hide debug overlay immediately
             if self._debug_overlay is not None:
-                QTimer.singleShot(0, self._debug_overlay.hide_debug)
+                self._debug_overlay.hide()
 
     def _worker_loop(self) -> None:
         """
