@@ -161,23 +161,19 @@ class OverlayWindow(QWidget):
         self.resize(self._config.width, target_h)
 
     def _move_near_cursor(self, cursor_pos: tuple[int, int]) -> None:
-        target_x = cursor_pos[0] + self._config.x_offset
-        target_y = cursor_pos[1] + self._config.y_offset
-
-        screen = QGuiApplication.screenAt(QPoint(cursor_pos[0], cursor_pos[1]))
+        # Always show in top-right of screen
+        screen = QGuiApplication.primaryScreen()
         if screen is None:
-            screen = QGuiApplication.primaryScreen()
-        if screen is None:
-            self.move(target_x, target_y)
+            self.move(100, 100)
             return
 
         geometry = screen.availableGeometry()
-        max_x = geometry.x() + geometry.width() - self.width()
-        max_y = geometry.y() + geometry.height() - self.height()
-
-        clamped_x = max(geometry.x(), min(target_x, max_x))
-        clamped_y = max(geometry.y(), min(target_y, max_y))
-        self.move(clamped_x, clamped_y)
+        
+        # Position in top-right with some padding
+        target_x = geometry.x() + geometry.width() - self.width() - 20
+        target_y = geometry.y() + 20
+        
+        self.move(target_x, target_y)
 
     def _apply_click_through(self) -> None:
         if win32con is None or win32gui is None:
