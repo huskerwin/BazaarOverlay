@@ -137,7 +137,6 @@ class AppController(QObject):
 
         if active:
             self._active_event.set()
-            self._debug_shown_this_activation = False
         else:
             self._active_event.clear()
             self._reset_temporal_state()
@@ -159,6 +158,9 @@ class AppController(QObject):
             if not self._active_event.wait(timeout=0.10):
                 continue
 
+            # Reset debug flag at start of new activation
+            self._debug_shown_this_activation = False
+            
             started = time.perf_counter()
             try:
                 # Run OCR detection
