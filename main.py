@@ -56,8 +56,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--ocr-region",
         type=str,
-        default="100,0,200,40",
-        help="OCR region as 'x,y,width,height' relative to cursor.",
+        default="0,0,0,0",
+        help="OCR region as 'x,y,width,height' (0,0,0,0 = full ROI).",
     )
     return parser.parse_args()
 
@@ -82,7 +82,7 @@ def build_config(args: argparse.Namespace) -> AppConfig:
     if len(ocr_region) == 4:
         ocr_x, ocr_y, ocr_w, ocr_h = map(int, ocr_region)
     else:
-        ocr_x, ocr_y, ocr_w, ocr_h = 500, -50, 200, 40
+        ocr_x, ocr_y, ocr_w, ocr_h = 1000, -50, 200, 40
     
     ocr = OcrConfig(
         enabled=True,  # OCR is always enabled

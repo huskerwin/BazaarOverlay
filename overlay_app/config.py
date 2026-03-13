@@ -21,10 +21,10 @@ class CaptureConfig:
 class OcrConfig:
     """OCR detection configuration."""
     enabled: bool = True  # OCR is always enabled
-    region_x: int = 100   # X offset from cursor (right positive)
-    region_y: int = 0      # Y offset from cursor (down positive, negative = up)
-    region_width: int = 200  # Width of OCR region
-    region_height: int = 40   # Height of OCR region
+    region_x: int = 0    # X offset from ROI (0 = use full width)
+    region_y: int = 0     # Y offset from ROI (0 = use full height)
+    region_width: int = 0  # 0 = full ROI width
+    region_height: int = 0  # 0 = full ROI height
 
 
 @dataclass(frozen=True)

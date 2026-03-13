@@ -69,21 +69,20 @@ class OcrItemDetector:
             return None
         
         try:
-            # Crop to OCR region if specified
+            # Crop to OCR region if specified and valid
+            crop = frame
             if region:
-                x, y = region["left"], region["top"]
-                w, h = region["width"], region["height"]
+                x = region.get("left", 0)
+                y = region.get("top", 0)
+                w = region.get("width", 0)
+                h = region.get("height", 0)
                 
-                # Validate region bounds
-                if x < 0 or y < 0 or w <= 0 or h <= 0:
-                    return None
-                if y + h > frame.shape[0] or x + w > frame.shape[1]:
-                    return None
-                crop = frame[y:y+h, x:x+w]
-            else:
-                crop = frame
+                # Use full frame if region is not valid
+                if w > 0 and h > 0 and x >= 0 and y >= 0:
+                    if y + h <= frame.shape[0] and x + w <= frame.shape[1]:
+                        crop = frame[y:y+h, x:x+w]
             
-            # Run EasyOCR to extract text
+            # Run EasyOCR on the cropped region
             results = self._reader.readtext(crop, detail=0)
             
             if not results:
