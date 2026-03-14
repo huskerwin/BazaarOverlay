@@ -133,6 +133,7 @@ Enchantment data is scraped from [bazaardb.gg](https://bazaardb.gg) using `scrap
 
 - `docs/ARCHITECTURE.md` - System design and module responsibilities
 - `docs/DEVELOPER_GUIDE.md` - Detailed developer documentation
+- `BUILD.md` - How to build the executable and create installer
 
 ## Project Structure
 
