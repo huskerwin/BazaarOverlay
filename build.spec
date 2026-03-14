@@ -1,15 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
 PyInstaller build specification for Bazaar Overlay
-Run: pyinstaller build.spec
+Optimized for faster builds
 """
 
-import sys
 from pathlib import Path
 
 block_cipher = None
-
-# Get the project root
 root = Path(SPECPATH)
 
 a = Analysis(
@@ -18,7 +15,6 @@ a = Analysis(
     binaries=[],
     datas=[
         ('data/items.json', 'data'),
-        ('data/enchantments.json', 'data'),
     ],
     hiddenimports=[
         'cv2',
@@ -44,6 +40,13 @@ a = Analysis(
         'notebook',
         'sphinx',
         'pytest',
+        'tensorflow',
+        'keras',
+        'pandas',
+        'sklearn',
+        'scipy',
+        'PIL.ImageFilter',
+        'PIL.MpegImagePlugin',
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
@@ -63,14 +66,14 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=False,  # No console for GUI app
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='assets/icon.ico',  # Will be created
-    version='version_info.txt',
+    icon=str(root / 'assets' / 'icon.ico'),
+    version=str(root / 'version_info.txt'),
 )
 
 coll = COLLECT(
