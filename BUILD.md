@@ -40,6 +40,18 @@ pyinstaller build.spec
 
 The executable will be in `dist/BazaarOverlay/BazaarOverlay.exe`
 
+### Using Pre-built
+
+If you just want to run the app, use the pre-built version:
+```
+dist\BazaarOverlay\BazaarOverlay.exe
+```
+
+The app will:
+- Show a system tray icon
+- Run in the background
+- Use default settings (ROI 1200x800, poll 75ms)
+
 ### 4. Create Installer (Optional)
 
 ```bash
