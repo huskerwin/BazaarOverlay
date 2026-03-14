@@ -15,21 +15,21 @@ import logging
 import sys
 from pathlib import Path
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QTimer
+from PySide6.QtGui import QAction, QIcon
+from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from overlay_app.config import AppConfig, CaptureConfig, OcrConfig
+from overlay_app.config import AppConfig, CaptureConfig, OcrConfig, OverlayConfig
 from overlay_app.controller import AppController
 from overlay_app.item_repository import ItemRepository
 from overlay_app.overlay_window import DebugOverlayWindow, OverlayWindow
 from overlay_app.screen_capture import enable_dpi_awareness
+from overlay_app.settings_manager import SettingsManager
+from overlay_app.settings_window import SettingsWindow
 
 
 def parse_args(args: list[str] | None = None) -> argparse.Namespace:
-    """Parse command-line arguments.
-    
-    Args:
-        args: List of arguments to parse. If None, uses sys.argv.
-    """
+    """Parse command-line arguments."""
     default_items = Path(__file__).resolve().parent / "data" / "items.json"
     parser = argparse.ArgumentParser(
         description="Display item info overlay using OCR while holding Shift+E."
@@ -48,32 +48,32 @@ def parse_args(args: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--roi-width",
         type=int,
-        default=1200,
         help="Capture width around cursor in pixels.",
     )
     parser.add_argument(
         "--roi-height",
         type=int,
-        default=800,
         help="Capture height around cursor in pixels.",
     )
     parser.add_argument(
         "--skip-frames",
         type=int,
-        default=7,
         help="Skip OCR every N frames (1 = no skip, 2 = half speed, etc).",
     )
     parser.add_argument(
         "--poll-ms",
         type=int,
-        default=75,
         help="Detection loop interval while hotkey is held.",
     )
     parser.add_argument(
         "--ocr-region",
         type=str,
-        default="0,0,0,0",
         help="OCR region as 'x,y,width,height' (0,0,0,0 = full ROI).",
+    )
+    parser.add_argument(
+        "--no-tray",
+        action="store_true",
+        help="Disable system tray icon.",
     )
     return parser.parse_args(args)
 
@@ -86,24 +86,34 @@ def configure_logging(debug: bool) -> None:
     )
 
 
-def build_config(args: argparse.Namespace) -> AppConfig:
-    """Build app configuration from parsed arguments."""
+def build_config(args: argparse.Namespace, settings: SettingsManager) -> AppConfig:
+    """Build app configuration from parsed arguments and settings."""
+    # Get values from args, fall back to settings
+    s = settings.get_all()
+    
+    roi_width = args.roi_width if args.roi_width is not None else s.get("roi_width", 1200)
+    roi_height = args.roi_height if args.roi_height is not None else s.get("roi_height", 800)
+    poll_ms = args.poll_ms if args.poll_ms is not None else s.get("poll_ms", 75)
+    skip_frames = args.skip_frames if args.skip_frames is not None else s.get("skip_frames", 7)
+    debug = args.debug if args.debug else s.get("debug", False)
+    ocr_region_str = args.ocr_region if args.ocr_region is not None else s.get("ocr_region", "0,0,0,0")
+    
     capture = CaptureConfig(
-        roi_width=max(24, int(args.roi_width)),
-        roi_height=max(24, int(args.roi_height)),
-        poll_interval_ms=max(25, int(args.poll_ms)),
-        skip_frames=max(1, int(args.skip_frames)),
+        roi_width=max(24, int(roi_width)),
+        roi_height=max(24, int(roi_height)),
+        poll_interval_ms=max(25, int(poll_ms)),
+        skip_frames=max(1, int(skip_frames)),
     )
     
     # Parse OCR region: "x,y,width,height"
-    ocr_region = args.ocr_region.split(",")
+    ocr_region = ocr_region_str.split(",")
     if len(ocr_region) == 4:
         ocr_x, ocr_y, ocr_w, ocr_h = map(int, ocr_region)
     else:
         ocr_x, ocr_y, ocr_w, ocr_h = 0, 0, 0, 0
     
     ocr = OcrConfig(
-        enabled=True,  # OCR is always enabled
+        enabled=True,
         region_x=ocr_x,
         region_y=ocr_y,
         region_width=ocr_w,
@@ -112,51 +122,168 @@ def build_config(args: argparse.Namespace) -> AppConfig:
     
     return AppConfig(
         items_path=args.items.resolve(),
-        debug=bool(args.debug),
+        debug=bool(debug),
         capture=capture,
         ocr=ocr,
     )
 
 
+class BazaarOverlayApp:
+    """Main application class with system tray integration."""
+    
+    def __init__(self, args: argparse.Namespace):
+        self.args = args
+        self.logger = logging.getLogger("overlay.main")
+        self._settings = SettingsManager()
+        self._config = build_config(args, self._settings)
+        self._controller: AppController | None = None
+        self._tray_icon: QSystemTrayIcon | None = None
+        self._app: QApplication | None = None
+    
+    def run(self) -> int:
+        """Run the application."""
+        configure_logging(debug=self._config.debug)
+        
+        # Enable DPI awareness
+        enable_dpi_awareness()
+        
+        # Create Qt application
+        self._app = QApplication(sys.argv)
+        self._app.setQuitOnLastWindowClosed(False)
+        
+        # Load items
+        repository = ItemRepository()
+        try:
+            items = repository.load_items(self._config.items_path)
+        except Exception as exc:
+            self.logger.error("Failed to load item database: %s", exc)
+            return 1
+        
+        # Create overlay windows
+        overlay = OverlayWindow(self._config.overlay)
+        debug_overlay = DebugOverlayWindow() if self._config.debug else None
+        
+        # Create controller
+        self._controller = AppController(
+            config=self._config,
+            items=items,
+            overlay=overlay,
+            debug_overlay=debug_overlay
+        )
+        
+        # Setup system tray
+        if not args.no_tray:
+            self._setup_tray()
+        
+        # Start controller
+        self._controller.start()
+        self._app.aboutToQuit.connect(self._shutdown)
+        
+        self.logger.info("Running. Hold Shift+E over an item to show overlay.")
+        return self._app.exec()
+    
+    def _setup_tray(self) -> None:
+        """Setup system tray icon and menu."""
+        self._tray_icon = QSystemTrayIcon()
+        
+        # Try to load icon, fallback to default
+        icon_path = Path(__file__).parent / "assets" / "icon.png"
+        if icon_path.exists():
+            self._tray_icon.setIcon(QIcon(str(icon_path)))
+        else:
+            # Use a default icon
+            self._tray_icon.setIcon(self._app.style().standardIcon(
+                self._app.style().StandardPixmap.SP_ComputerIcon
+            ))
+        
+        self._tray_icon.setToolTip("Bazaar Overlay\nHold Shift+E over items")
+        
+        # Create tray menu
+        menu = QMenu()
+        
+        self._status_action = QAction("Status: Running")
+        self._status_action.setEnabled(False)
+        menu.addAction(self._status_action)
+        
+        menu.addSeparator()
+        
+        settings_action = QAction("Settings...")
+        settings_action.triggered.connect(self._show_settings)
+        menu.addAction(settings_action)
+        
+        menu.addSeparator()
+        
+        quit_action = QAction("Quit")
+        quit_action.triggered.connect(self._quit)
+        menu.addAction(quit_action)
+        
+        self._tray_icon.setContextMenu(menu)
+        self._tray_icon.activated.connect(self._tray_activated)
+        self._tray_icon.show()
+    
+    def _tray_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
+        """Handle tray icon click."""
+        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+            self._show_settings()
+    
+    def _show_settings(self) -> None:
+        """Show settings dialog."""
+        dialog = SettingsWindow(self._settings)
+        dialog.settings_changed.connect(self._on_settings_changed)
+        dialog.exec()
+    
+    def _on_settings_changed(self, new_settings: dict) -> None:
+        """Handle settings changes - restart controller with new config."""
+        self.logger.info("Settings changed, restarting...")
+        
+        # Stop controller
+        if self._controller:
+            self._controller.shutdown()
+        
+        # Rebuild config with new settings
+        self._config = build_config(self.args, self._settings)
+        
+        # Reload items
+        repository = ItemRepository()
+        try:
+            items = repository.load_items(self._config.items_path)
+        except Exception as exc:
+            self.logger.error("Failed to reload item database: %s", exc)
+            return
+        
+        # Recreate overlay windows
+        overlay = OverlayWindow(self._config.overlay)
+        debug_overlay = DebugOverlayWindow() if self._config.debug else None
+        
+        # Recreate controller
+        self._controller = AppController(
+            config=self._config,
+            items=items,
+            overlay=overlay,
+            debug_overlay=debug_overlay
+        )
+        self._controller.start()
+        
+        self.logger.info("Restarted with new settings")
+    
+    def _shutdown(self) -> None:
+        """Shutdown application cleanly."""
+        if self._controller:
+            self._controller.shutdown()
+    
+    def _quit(self) -> None:
+        """Quit the application."""
+        self._shutdown()
+        self._app.quit()
+
+
 def main() -> int:
     """Main entry point."""
+    global args
     args = parse_args()
-    configure_logging(debug=bool(args.debug))
-
-    # Enable DPI awareness for accurate screen coordinates
-    enable_dpi_awareness()
-    config = build_config(args)
     
-    # Load item definitions from JSON
-    repository = ItemRepository()
-    try:
-        items = repository.load_items(config.items_path)
-    except Exception as exc:
-        logging.getLogger("overlay.main").error("Failed to load item database: %s", exc)
-        return 1
-
-    # Create Qt application
-    app = QApplication(sys.argv)
-    app.setQuitOnLastWindowClosed(False)
-
-    # Create overlay windows
-    overlay = OverlayWindow(config.overlay)
-    debug_overlay = DebugOverlayWindow() if config.debug else None
-    
-    # Create and start controller
-    controller = AppController(
-        config=config, 
-        items=items, 
-        overlay=overlay, 
-        debug_overlay=debug_overlay
-    )
-    controller.start()
-    app.aboutToQuit.connect(controller.shutdown)
-
-    logging.getLogger("overlay.main").info(
-        "Running. Hold Shift+E over an item to show overlay."
-    )
-    return app.exec()
+    app = BazaarOverlayApp(args)
+    return app.run()
 
 
 if __name__ == "__main__":
