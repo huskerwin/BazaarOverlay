@@ -28,6 +28,7 @@ class SettingsWindow(QDialog):
     """Settings dialog for Bazaar Overlay."""
     
     settings_changed = Signal(dict)
+    quit_app = Signal()
     
     def __init__(self, settings: SettingsManager, parent: QWidget | None = None):
         super().__init__(parent)
@@ -108,6 +109,10 @@ class SettingsWindow(QDialog):
         # Buttons
         button_layout = QHBoxLayout()
         
+        self.close_app_button = QPushButton("Close App")
+        self.close_app_button.clicked.connect(self._close_app)
+        button_layout.addWidget(self.close_app_button)
+        
         self.reset_button = QPushButton("Reset to Defaults")
         self.reset_button.clicked.connect(self._reset_to_defaults)
         button_layout.addWidget(self.reset_button)
@@ -148,6 +153,10 @@ class SettingsWindow(QDialog):
         self.minimize_to_tray.setChecked(True)
         self.show_notifications.setChecked(True)
         self.debug_mode.setChecked(False)
+    
+    def _close_app(self) -> None:
+        self.quit_app.emit()
+        self.reject()
     
     def _save_settings(self) -> None:
         self._settings.set("roi_width", self.roi_width.value())

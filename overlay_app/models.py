@@ -38,6 +38,7 @@ class OverlayPayload:
     body: str
     confidence_text: str
     matched: bool
+    is_stabilizing: bool = False
     debug_image: np.ndarray | None = None
     ocr_region: tuple[int, int, int, int] | None = None
     enchantments: dict[str, str] | None = None

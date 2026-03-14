@@ -3,8 +3,8 @@ from __future__ import annotations
 import logging
 
 import numpy as np
-from PySide6.QtCore import QPoint, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QGuiApplication, QImage, QPainter, QPen
+from PySide6.QtCore import QPoint, Qt, Signal, QTimer
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QGuiApplication, QImage, QPainter, QPen, QPainterPath
 from PySide6.QtWidgets import QWidget
 
 from .config import OverlayConfig
@@ -29,40 +29,99 @@ class OverlayWindow(QWidget):
         self._body = ""
         self._confidence = ""
         self._matched = False
+        self._is_stabilizing = False
         self._debug_image: np.ndarray | None = None
         self._ocr_region: tuple[int, int, int, int] | None = None
         self._enchantments: dict[str, str] | None = None
+        
+        self._spinner_angle = 0
+        self._spinner_timer = QTimer(self)
+        self._spinner_timer.timeout.connect(self._update_spinner)
+        self._spinner_timer.setInterval(50)
 
         self._padding = 12
         self._line_gap = 6
 
-        self._title_font = QFont("Segoe UI", 10, QFont.Bold)
+        self._title_font = QFont("Segoe UI", 10, 75)
         self._body_font = QFont("Segoe UI", 9)
         self._confidence_font = QFont("Consolas", 8)
-        self._enchantment_title_font = QFont("Segoe UI", 8, QFont.Bold)
-        self._enchantment_text_font = QFont("Segoe UI", 7)
+        self._enchantment_title_font = QFont("Segoe UI", 10, 75)
+        self._enchantment_text_font = QFont("Segoe UI", 9)
+        
+        self._enchant_colors = {
+            "protection": QColor(230, 200, 100),
+            "fire_protection": QColor(255, 140, 0),
+            "feather_falling": QColor(200, 200, 200),
+            "blast_protection": QColor(180, 100, 200),
+            "projectile_protection": QColor(100, 150, 255),
+            "thorns": QColor(255, 80, 80),
+            "efficiency": QColor(150, 220, 255),
+            "unbreaking": QColor(180, 100, 200),
+            "fortune": QColor(100, 200, 100),
+            "silk_touch": QColor(100, 200, 200),
+            "looting": QColor(255, 100, 100),
+            "sharpness": QColor(255, 80, 80),
+            "smite": QColor(255, 200, 100),
+            "bane_of_arthropods": QColor(160, 100, 180),
+            "knockback": QColor(100, 150, 255),
+            "fire_aspect": QColor(255, 140, 0),
+            "sweeping_edge": QColor(220, 220, 220),
+            "power": QColor(255, 200, 100),
+            "punch": QColor(100, 150, 255),
+            "flame": QColor(255, 140, 0),
+            "infinity": QColor(100, 200, 200),
+            "mending": QColor(100, 200, 100),
+            "lure": QColor(180, 100, 180),
+            "luck_of_the_sea": QColor(100, 200, 100),
+            "channeling": QColor(180, 100, 180),
+            "impaling": QColor(100, 200, 200),
+            "loyalty": QColor(100, 150, 255),
+            "riptide": QColor(100, 200, 200),
+            "quick_charge": QColor(255, 200, 100),
+            "multishot": QColor(255, 200, 100),
+            "piercing": QColor(100, 200, 200),
+            "soul_speed": QColor(100, 150, 255),
+            "swift_sneak": QColor(100, 200, 200),
+            "respiration": QColor(100, 200, 200),
+            "depth_strider": QColor(100, 150, 255),
+            "frost_walker": QColor(150, 220, 255),
+            "vanishing": QColor(180, 100, 180),
+        }
+        
+        self._default_enchant_color = QColor(200, 180, 220)
 
         self.setWindowFlags(
-            Qt.FramelessWindowHint
-            | Qt.Tool
-            | Qt.WindowStaysOnTopHint
-            | Qt.WindowDoesNotAcceptFocus
+            Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.Tool
+            | Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.WindowDoesNotAcceptFocus
         )
-        self.setAttribute(Qt.WA_TranslucentBackground, True)
-        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
 
         self.resize(self._config.width, self._config.min_height)
         self.hide()
 
+    def _update_spinner(self) -> None:
+        self._spinner_angle = (self._spinner_angle + 30) % 360
+        self.update()
+
     def show_payload(self, payload: OverlayPayload) -> None:
+        was_stabilizing = self._is_stabilizing
         self._title = payload.title
         self._body = payload.body
         self._confidence = payload.confidence_text
         self._matched = payload.matched
+        self._is_stabilizing = payload.is_stabilizing
         self._debug_image = payload.debug_image
         self._ocr_region = payload.ocr_region
         self._enchantments = payload.enchantments
+        
+        if self._is_stabilizing and not was_stabilizing:
+            self._spinner_timer.start()
+        elif not self._is_stabilizing and was_stabilizing:
+            self._spinner_timer.stop()
 
         self._recompute_size()
         self._move_near_cursor(payload.cursor_pos)
@@ -73,12 +132,21 @@ class OverlayWindow(QWidget):
         self.update()
 
     def hide_overlay(self) -> None:
+        self._spinner_timer.stop()
         self.hide()
 
-    def showEvent(self, event) -> None:
-        super().showEvent(event)
-        self._apply_click_through()
-
+    def _draw_spinner(self, painter: QPainter, x: int, y: int, size: int) -> None:
+        pen = QPen(QColor(100, 150, 255, 200))
+        pen.setWidth(2)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        
+        radius = size // 2 - 2
+        start_angle = self._spinner_angle * 16
+        span_angle = 270 * 16
+        
+        painter.drawArc(x - radius, y - radius, radius * 2, radius * 2, start_angle, span_angle)
+    
     def paintEvent(self, _event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
@@ -108,6 +176,13 @@ class OverlayWindow(QWidget):
         )
         painter.drawText(title_rect, int(Qt.TextWordWrap | Qt.AlignLeft | Qt.AlignTop), self._title)
         y = title_rect.bottom() + 1 + self._line_gap
+        
+        if self._is_stabilizing:
+            spinner_size = 16
+            spinner_x = self._padding + spinner_size // 2
+            spinner_y = y + spinner_size // 2
+            self._draw_spinner(painter, spinner_x, spinner_y, spinner_size)
+            y += spinner_size + self._line_gap
 
         painter.setFont(self._body_font)
         painter.setPen(body_color)
@@ -140,7 +215,7 @@ class OverlayWindow(QWidget):
         y = conf_rect.bottom() + 1 + self._line_gap
 
         if self._enchantments:
-            enchant_color = QColor(180, 160, 220, 230)
+            enchant_color = QColor(200, 180, 220)
             painter.setFont(self._enchantment_title_font)
             painter.setPen(enchant_color)
             enc_title_rect = painter.boundingRect(
@@ -155,8 +230,13 @@ class OverlayWindow(QWidget):
             y = enc_title_rect.bottom() + 2 + self._line_gap
 
             painter.setFont(self._enchantment_text_font)
+            desc_color = QColor(220, 220, 220)
             for enc_name, enc_desc in self._enchantments.items():
-                enc_text = f"• {enc_name.title()}: {enc_desc}"
+                enc_name_formatted = enc_name.title().replace("_", " ")
+                enc_text = f"• {enc_name_formatted}: {enc_desc}"
+                
+                enc_color = self._enchant_colors.get(enc_name.lower(), self._default_enchant_color)
+                
                 enc_rect = painter.boundingRect(
                     self._padding,
                     y,
@@ -165,8 +245,29 @@ class OverlayWindow(QWidget):
                     int(Qt.TextWordWrap | Qt.AlignLeft | Qt.AlignTop),
                     enc_text,
                 )
-                painter.drawText(enc_rect, int(Qt.TextWordWrap | Qt.AlignLeft | Qt.AlignTop), enc_text)
-                y = enc_rect.bottom() + 1 + self._line_gap
+                
+                bullet_width = QFontMetrics(self._enchantment_text_font).horizontalAdvance("• ")
+                name_end_x = self._padding + bullet_width + QFontMetrics(self._enchantment_text_font).horizontalAdvance(enc_name_formatted + ": ")
+                
+                painter.setPen(QColor(180, 180, 180))
+                painter.drawText(self._padding, y + QFontMetrics(self._enchantment_text_font).ascent(), "• ")
+                
+                painter.setPen(enc_color)
+                painter.drawText(
+                    self._padding + bullet_width, 
+                    y + QFontMetrics(self._enchantment_text_font).ascent(), 
+                    enc_name_formatted + ":"
+                )
+                
+                painter.setPen(desc_color)
+                name_width = QFontMetrics(self._enchantment_text_font).horizontalAdvance(enc_name_formatted + ": ")
+                painter.drawText(
+                    self._padding + bullet_width + name_width,
+                    y + QFontMetrics(self._enchantment_text_font).ascent(),
+                    enc_desc
+                )
+                
+                y += QFontMetrics(self._enchantment_text_font).height() + self._line_gap
 
     def _recompute_size(self) -> None:
         text_width = self._config.width - (self._padding * 2)
@@ -189,11 +290,7 @@ class OverlayWindow(QWidget):
             ).height()
             enchantments_h += enchant_title_h + self._line_gap
             for enc_name, enc_desc in self._enchantments.items():
-                enc_text = f"• {enc_name.title()}: {enc_desc}"
-                enc_h = QFontMetrics(self._enchantment_text_font).boundingRect(
-                    0, 0, text_width, 1000, flags, enc_text
-                ).height()
-                enchantments_h += enc_h + self._line_gap
+                enchantments_h += QFontMetrics(self._enchantment_text_font).height() + self._line_gap
 
         content_h = (
             self._padding

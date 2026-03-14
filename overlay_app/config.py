@@ -32,7 +32,7 @@ class OcrConfig:
 @dataclass(frozen=True)
 class OverlayConfig:
     """Overlay window configuration."""
-    width: int = 336  # Overlay width in pixels
+    width: int = 450  # Overlay width in pixels
     min_height: int = 100  # Minimum overlay height
     x_offset: int = 20  # X offset from cursor
     y_offset: int = 24  # Y offset from cursor

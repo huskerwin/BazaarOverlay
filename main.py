@@ -140,6 +140,16 @@ class BazaarOverlayApp:
         self._tray_icon: QSystemTrayIcon | None = None
         self._app: QApplication | None = None
     
+    def _get_asset_path(self, filename: str) -> Path:
+        """Get path to asset, works both in dev and packaged exe."""
+        if getattr(sys, 'frozen', False):
+            # Running as packaged exe
+            base_path = Path(sys._MEIPASS)
+        else:
+            # Running in development
+            base_path = Path(__file__).parent
+        return base_path / "assets" / filename
+    
     def run(self) -> int:
         """Run the application."""
         configure_logging(debug=self._config.debug)
@@ -150,6 +160,13 @@ class BazaarOverlayApp:
         # Create Qt application
         self._app = QApplication(sys.argv)
         self._app.setQuitOnLastWindowClosed(False)
+        
+        # Check if first run (before SettingsManager creates the file)
+        import os
+        app_data = Path(os.environ.get("APPDATA", ""))
+        config_dir = app_data / "BazaarOverlay"
+        config_file = config_dir / "settings.json"
+        is_first_run = not config_file.exists()
         
         # Load items
         repository = ItemRepository()
@@ -175,6 +192,10 @@ class BazaarOverlayApp:
         if not args.no_tray:
             self._setup_tray()
         
+        # Show settings on first startup
+        if is_first_run:
+            self._show_settings()
+        
         # Start controller
         self._controller.start()
         self._app.aboutToQuit.connect(self._shutdown)
@@ -187,37 +208,40 @@ class BazaarOverlayApp:
         self._tray_icon = QSystemTrayIcon()
         
         # Try to load icon, fallback to default
-        icon_path = Path(__file__).parent / "assets" / "icon.png"
+        icon_path = self._get_asset_path("icon.ico")
         if icon_path.exists():
             self._tray_icon.setIcon(QIcon(str(icon_path)))
         else:
-            # Use a default icon
-            self._tray_icon.setIcon(self._app.style().standardIcon(
-                self._app.style().StandardPixmap.SP_ComputerIcon
-            ))
+            icon_path_png = self._get_asset_path("icon.png")
+            if icon_path_png.exists():
+                self._tray_icon.setIcon(QIcon(str(icon_path_png)))
+            else:
+                self._tray_icon.setIcon(self._app.style().standardIcon(
+                    self._app.style().StandardPixmap.SP_ComputerIcon
+                ))
         
         self._tray_icon.setToolTip("Bazaar Overlay\nHold Shift+E over items")
         
-        # Create tray menu
-        menu = QMenu()
+        # Create tray menu (keep reference to prevent garbage collection)
+        self._tray_menu = QMenu()
         
         self._status_action = QAction("Status: Running")
         self._status_action.setEnabled(False)
-        menu.addAction(self._status_action)
+        self._tray_menu.addAction(self._status_action)
         
-        menu.addSeparator()
+        self._tray_menu.addSeparator()
         
         settings_action = QAction("Settings...")
         settings_action.triggered.connect(self._show_settings)
-        menu.addAction(settings_action)
+        self._tray_menu.addAction(settings_action)
         
-        menu.addSeparator()
+        self._tray_menu.addSeparator()
         
         quit_action = QAction("Quit")
         quit_action.triggered.connect(self._quit)
-        menu.addAction(quit_action)
+        self._tray_menu.addAction(quit_action)
         
-        self._tray_icon.setContextMenu(menu)
+        self._tray_icon.setContextMenu(self._tray_menu)
         self._tray_icon.activated.connect(self._tray_activated)
         self._tray_icon.show()
     
@@ -230,6 +254,7 @@ class BazaarOverlayApp:
         """Show settings dialog."""
         dialog = SettingsWindow(self._settings)
         dialog.settings_changed.connect(self._on_settings_changed)
+        dialog.quit_app.connect(self._quit)
         dialog.exec()
     
     def _on_settings_changed(self, new_settings: dict) -> None:

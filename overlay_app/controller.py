@@ -358,15 +358,19 @@ class AppController(QObject):
         """
         detected_text = self._ocr_detector.last_detected_text if self._ocr_detector else None
         
+        # Determine if stabilizing (not yet stable)
+        is_stabilizing = result.message == "Stabilizing..."
+        
         if result.matched and result.item is not None:
             title = result.item.name
             body = result.message
             matched = True
         else:
-            title = "No match"
-            if detected_text:
-                body = f"Detected: '{detected_text}'"
+            if is_stabilizing:
+                title = "Detecting..."
+                body = "Hold steady to confirm item"
             else:
+                title = "No match"
                 body = "Move cursor over an item name in the game."
             matched = False
 
@@ -394,6 +398,7 @@ class AppController(QObject):
             body=body,
             confidence_text=confidence_text,
             matched=matched,
+            is_stabilizing=is_stabilizing,
             debug_image=debug_image,
             ocr_region=ocr_region,
             enchantments=enchantments,

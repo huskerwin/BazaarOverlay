@@ -54,6 +54,10 @@ class SettingsManager:
         else:
             self._settings = self.DEFAULT_SETTINGS.copy()
             LOGGER.info("Using default settings")
+    
+    def is_first_run(self) -> bool:
+        """Check if this is the first run (no settings file exists)."""
+        return not self._config_path.exists()
 
     def save(self) -> None:
         """Save settings to file."""
