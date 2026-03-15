@@ -192,9 +192,8 @@ class BazaarOverlayApp:
         if not args.no_tray:
             self._setup_tray()
         
-        # Show settings on first startup
-        if is_first_run:
-            self._show_settings()
+        # Show settings on startup
+        self._show_settings()
         
         # Start controller
         self._controller.start()

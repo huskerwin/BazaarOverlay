@@ -18,7 +18,16 @@ This app does **not** automate gameplay or interact with the game beyond screen 
 - Python 3.11+
 - Game running in borderless/windowed mode
 
-## Install
+## Quick Start (Pre-built)
+
+Simply run the executable:
+```
+dist\BazaarOverlay-v15\BazaarOverlay.exe
+```
+
+On first launch, the Settings window opens. Configure your preferences and click Save. The app minimizes to the system tray. Right-click the tray icon for Settings or Quit.
+
+## Development Setup
 
 ```bash
 python -m venv .venv
@@ -33,7 +42,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-## Run
+## Run (Development)
 
 **Normal mode:**
 ```bash
@@ -50,7 +59,7 @@ Hold `Shift + E` over an item in the game to see its info.
 ## Command Line Options
 
 | Option | Default | Description |
-|--------|---------|--------------|
+|--------|---------|-------------|
 | `--debug` | off | Show debug overlay with OCR region |
 | `--roi-radius` | 400 | Capture radius around cursor (pixels) |
 | `--poll-ms` | 75 | Detection loop interval (ms) |
@@ -67,6 +76,30 @@ Example for better performance:
 ```bash
 python main.py --debug --roi-radius 200 --skip-frames 2
 ```
+
+## Features
+
+### System Tray Integration
+- App runs in system tray
+- Right-click for Settings or Quit
+- Double-click tray icon to open Settings
+
+### Settings Window
+- **ROI Size**: Capture region dimensions (width x height)
+- **Poll Interval**: How often to check (ms)
+- **Skip Frames**: Skip OCR every N frames for performance
+- **OCR Region**: Custom region for text detection
+- **Auto-start**: Launch with Windows
+- **Minimize to Tray**: Keep running in background
+- **Show Notifications**: Display Windows notifications
+
+### Overlay Display
+- Item name (title)
+- Item info/description
+- Confidence percentage
+- Enchantments with color-coded names
+- Loading spinner during detection stabilization
+- Auto-width based on content (up to 450px)
 
 ## Shortcuts
 
@@ -139,14 +172,16 @@ Enchantment data is scraped from [bazaardb.gg](https://bazaardb.gg) using `scrap
 
 ```
 overlay_app/
-  controller.py    - Main orchestration
-  ocr_detector.py - OCR text detection
-  screen_capture.py - Screen capture
+  controller.py       - Main orchestration
+  ocr_detector.py    - OCR text detection
+  screen_capture.py  - Screen capture
   hotkey_listener.py - Keyboard input
-  overlay_window.py - UI rendering
-  config.py - Configuration
-  models.py - Data classes
-  item_repository.py - Item database loading
+  overlay_window.py  - UI rendering
+  config.py          - Configuration
+  models.py          - Data classes
+  item_repository.py  - Item database loading
+  settings_manager.py - Persistent settings
+  settings_window.py - Settings UI
 
 tools/
   capture_template.py - Template capture tool

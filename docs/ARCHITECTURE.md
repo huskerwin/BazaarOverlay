@@ -29,9 +29,22 @@ This document describes how the Bazaar Overlay works - an OCR-based item info ov
   - Application entry point.
   - Parses CLI flags and builds runtime config.
   - Loads item definitions and wires controller + overlay window.
+  - Shows settings window on every startup.
+  - Creates system tray icon with right-click menu.
+  - Handles settings changes and app restart.
 
 - `overlay_app/config.py`
   - Dataclasses for capture, OCR, and overlay configuration.
+
+- `overlay_app/settings_manager.py`
+  - Manages persistent settings stored in AppData.
+  - Handles settings save/load from JSON.
+  - Manages Windows auto-start registry entry.
+  - Provides first-run detection.
+
+- `overlay_app/settings_window.py`
+  - Qt dialog for user settings configuration.
+  - Signals for settings changes and app quit.
 
 - `overlay_app/item_repository.py`
   - Loads `data/items.json`.
@@ -72,6 +85,18 @@ This document describes how the Bazaar Overlay works - an OCR-based item info ov
   - Draws title, body, confidence text, and enchantments list.
   - Clamps position to screen bounds.
   - Includes debug overlay window for visualizing OCR region (when `--debug` enabled).
+  - Loading spinner during detection stabilization.
+  - Color-coded enchantment names.
+
+- `overlay_app/settings_window.py`
+  - Qt dialog for configuring app settings.
+  - Options for ROI size, poll interval, skip frames, OCR region.
+  - Auto-start toggle, minimize to tray, show notifications.
+  - Close App button to quit from settings.
+
+- `overlay_app/settings_manager.py`
+  - Persists settings to `%APPDATA%\BazaarOverlay\settings.json`.
+  - Manages Windows auto-start registry entry.
 
 ### Tools
 

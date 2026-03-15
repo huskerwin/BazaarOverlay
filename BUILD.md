@@ -204,3 +204,10 @@ dist\BazaarOverlay\BazaarOverlay.exe
   - System tray integration
   - Settings window
   - Installer support
+- **1.1.0** - Productization updates
+  - Settings on every startup
+  - System tray icon (icon.ico)
+  - Loading spinner during detection
+  - Wider overlay (450px)
+  - Close App button in settings
+  - Fixed thread restart issues

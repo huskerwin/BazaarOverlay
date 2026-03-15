@@ -15,6 +15,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('data/items.json', 'data'),
+        ('assets', 'assets'),
     ],
     hiddenimports=[
         'cv2',
@@ -89,5 +90,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='BazaarOverlay-v11',
+    name='BazaarOverlay-v15',
 )

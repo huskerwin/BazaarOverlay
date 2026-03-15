@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -22,22 +23,28 @@ def _build_config_with_defaults(args):
     return build_config(args, settings)
 
 
-def test_default_config():
+def test_default_config(tmp_path):
     """Test that default values are sensible."""
     from main import parse_args
     
-    args = parse_args([])
-    config = _build_config_with_defaults(args)
+    config_file = tmp_path / "settings.json"
+    config_file.write_text("{}")
     
-    assert config.debug is False
-    assert config.capture.roi_width == 1200
-    assert config.capture.roi_height == 800
-    assert config.capture.poll_interval_ms == 75
-    assert config.capture.skip_frames == 7
-    assert config.ocr.region_x == 0
-    assert config.ocr.region_y == 0
-    assert config.ocr.region_width == 0
-    assert config.ocr.region_height == 0
+    with patch.object(SettingsManager, '_get_config_path') as mock:
+        mock.return_value = config_file
+        
+        args = parse_args([])
+        config = _build_config_with_defaults(args)
+        
+        assert config.debug is False
+        assert config.capture.roi_width == 1200
+        assert config.capture.roi_height == 800
+        assert config.capture.poll_interval_ms == 75
+        assert config.capture.skip_frames == 7
+        assert config.ocr.region_x == 0
+        assert config.ocr.region_y == 0
+        assert config.ocr.region_width == 0
+        assert config.ocr.region_height == 0
 
 
 def test_debug_flag():

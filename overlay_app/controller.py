@@ -98,11 +98,7 @@ class AppController(QObject):
         self._active = False
         self._active_event = threading.Event()
         self._shutdown_event = threading.Event()
-        self._worker_thread = threading.Thread(
-            target=self._worker_loop,
-            name="item-detection-loop",
-            daemon=True,
-        )
+        self._worker_thread: threading.Thread | None = None
 
         # Connect Qt signals
         self.overlay_show.connect(self._overlay.show_payload)
@@ -110,6 +106,12 @@ class AppController(QObject):
 
     def start(self) -> None:
         """Start the controller (hotkey listener and worker thread)."""
+        # Create new worker thread each time (threads can't be restarted)
+        self._worker_thread = threading.Thread(
+            target=self._worker_loop,
+            name="item-detection-loop",
+            daemon=True,
+        )
         self._worker_thread.start()
         self._hotkey.start()
 
@@ -121,8 +123,9 @@ class AppController(QObject):
         self._shutdown_event.set()
         self.overlay_hide.emit()
 
-        if self._worker_thread.is_alive():
-            self._worker_thread.join(timeout=2.0)
+        worker = self._worker_thread
+        if worker is not None and worker.is_alive():
+            worker.join(timeout=2.0)
 
     def _on_hotkey_state(self, active: bool) -> None:
         """

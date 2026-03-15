@@ -17,17 +17,21 @@ class HoldHotkeyListener:
         self._trigger_down = False
         self._active = False
         self._lock = threading.Lock()
+        self._listener: keyboard.Listener | None = None
+
+    def start(self) -> None:
+        # Create new listener each time (listeners can't be restarted)
         self._listener = keyboard.Listener(
             on_press=self._on_press,
             on_release=self._on_release,
         )
-
-    def start(self) -> None:
         self._listener.start()
         LOGGER.info("Listening for Shift+%s hold.", self._trigger_key.upper())
 
     def stop(self) -> None:
-        self._listener.stop()
+        if self._listener:
+            self._listener.stop()
+            self._listener = None
 
     def _on_press(self, key: keyboard.Key | keyboard.KeyCode) -> None:
         with self._lock:
